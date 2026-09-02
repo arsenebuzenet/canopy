@@ -4,6 +4,14 @@ Tracks the Python side (CLI + MCP server). The VSCode extension has its own [vsc
 
 Versions follow semver. Pre-1.0 — minor bumps may add features or break behavior; the README is the source-of-truth contract.
 
+## Unreleased
+
+- Native Windows support: a `compat` platform seam (locks, shell dispatch,
+  home dir, detached spawn), a Windows-safe hook template, UTF-8 on all text
+  I/O, gate path normalisation, and Windows branches in `doctor`.
+- `mcp` pinned to `<2`.
+- CI runs on `windows-latest` in addition to `ubuntu-latest`.
+
 ## 4.0.0-rc1 — 2026-07-05 (The Great Prune — 4.0 phase 5)
 
 The distillation: the agent-facing MCP surface shrinks from 71 tools to the 15

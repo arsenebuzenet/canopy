@@ -70,6 +70,7 @@ src/canopy/
 │   └── feature_state.py     # 9-state machine, dashboard backend (live git, worktree-aware)
 ├── agent/
 │   └── runner.py            # canopy_run — directory-safe shell exec
+├── compat.py                # platform seam: locks, shell dispatch, home dir, detached spawn
 ├── agent_setup/             # ships bundled skills + setup_agent installer
 │   ├── __init__.py          # install_skill / install_mcp / check_status
 │   └── skills/              # one SKILL.md per skill name
@@ -129,6 +130,7 @@ For integration testing against real services, see `~/projects/canopy-test/` (me
 - **Action contract:** `actions/protocol.py` (planned) will formalize the per-repo `{status, before, after, reason?}` shape. For now, each action returns it ad-hoc.
 - **Skill bundling:** Bundled skills live at `src/canopy/agent_setup/skills/<name>/SKILL.md`. `canopy setup-agent` copies them to `~/.claude/skills/<name>/SKILL.md`. The default `using-canopy` skill always installs; opt-in extras (e.g. `augment-canopy`) install via `--skill <name>` (repeatable). Foreign skills with the same path are not overwritten without `--reinstall`. The `_SKILL_SOURCE` constant remains as a backward-compat alias pointing at `using-canopy`'s source.
 - **Version bumps:** When shipping a milestone, bump `__version__` in [`src/canopy/__init__.py`](src/canopy/__init__.py) and add a section to [`CHANGELOG.md`](CHANGELOG.md). The version handshake (`canopy --version`, `mcp__canopy__version`, doctor's `cli_stale` / `mcp_stale` checks) is only useful when this number actually moves — drift was the bug 0.5.0 caught.
+- **Platform seam:** `compat.py` is the only module allowed to import `fcntl`/`msvcrt` or check `sys.platform` (plus the standalone hook template). Shell commands go through `compat.run_shell` (Git Bash on Windows). All text I/O passes `encoding="utf-8"`; both rules are enforced by `tests/test_import_boundary.py` and `tests/test_encoding_guard.py`.
 
 ## MCP Server (15 agent tools)
 
