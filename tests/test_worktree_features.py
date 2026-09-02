@@ -134,7 +134,7 @@ class TestResolvePaths:
         assert "repo-b" in paths
         # Should point to worktree directories under .canopy/worktrees/<slot>
         for repo, path in paths.items():
-            assert ".canopy/worktrees/" in path
+            assert ".canopy/worktrees/" in Path(path).as_posix()
             assert Path(path).exists()
 
     def test_resolve_branch_paths(self, workspace_with_feature):
@@ -147,7 +147,7 @@ class TestResolvePaths:
         assert "repo-a" in paths
         assert "repo-b" in paths
         # Should point to the repo directories (branch is current)
-        assert paths["repo-a"] == str((workspace_with_feature / "repo-a").resolve())
+        assert Path(paths["repo-a"]).resolve() == (workspace_with_feature / "repo-a").resolve()
 
     def test_resolve_dot_workspace(self, workspace_dir):
         """resolve_paths for '.' isn't supported — that's the IDE command."""

@@ -535,7 +535,7 @@ class FeatureCoordinator:
                     continue
             # Priority 2: worktree path discovered by git (fallback)
             if repo_state.get("worktree_path"):
-                paths[repo_name] = repo_state["worktree_path"]
+                paths[repo_name] = str(Path(repo_state["worktree_path"]).resolve())
             # Priority 3: repo is on this branch
             elif state.current_branch == name:
                 paths[repo_name] = str(state.abs_path)

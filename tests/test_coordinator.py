@@ -431,7 +431,7 @@ def test_worktrees_live_keyed_by_slot(workspace_with_slots):
 def test_resolve_paths_returns_slot_path_for_warm_feature(workspace_with_slots):
     coord = FeatureCoordinator(workspace_with_slots)
     paths = coord.resolve_paths("Y")  # Y is warm in worktree-1
-    assert paths["repo-a"].endswith("worktree-1/repo-a")
+    assert Path(paths["repo-a"]).as_posix().endswith("worktree-1/repo-a")
 
 
 def test_done_removes_slot_dirs(workspace_with_slots):

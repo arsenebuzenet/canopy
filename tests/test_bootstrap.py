@@ -140,9 +140,9 @@ def test_render_code_workspace_includes_per_repo_settings(workspace_with_bootstr
     }
     body = render_code_workspace(workspace_with_bootstrap_config, "auth-flow", paths)
     parsed = json.loads(body)
-    assert {"name": "repo-a (auth-flow)", "path": "/wt/repo-a",
+    assert {"name": "repo-a (auth-flow)", "path": Path("/wt/repo-a").as_posix(),
             "settings": {"python": ".venv/bin/python"}} in parsed["folders"]
-    assert {"name": "repo-b (auth-flow)", "path": "/wt/repo-b"} in parsed["folders"]
+    assert {"name": "repo-b (auth-flow)", "path": Path("/wt/repo-b").as_posix()} in parsed["folders"]
     assert parsed["settings"]["canopy.feature"] == "auth-flow"
 
 
