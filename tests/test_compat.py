@@ -4,11 +4,25 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
 
 from canopy import compat
+
+_CHILD_LOCK_HOLDER = """
+import sys
+import time
+from canopy import compat
+
+path = sys.argv[1]
+with open(path, "r+b") as f:
+    compat.lock(f)
+    print("locked", flush=True)
+    time.sleep(1.5)
+    compat.unlock(f)
+"""
 
 
 def test_is_windows_matches_sys_platform():
@@ -38,6 +52,29 @@ def test_lock_on_append_mode_file(tmp_path):
         f.write("more\n")
         compat.unlock(f.fileno())
     assert p.read_text(encoding="utf-8") == "seed\nmore\n"
+
+
+def test_lock_blocks_until_holder_releases(tmp_path):
+    """`lock()` must block like `flock(LOCK_EX)`, not give up after ~10s (msvcrt's LK_LOCK)."""
+    p = tmp_path / "contend.lock"
+    p.write_text("x", encoding="utf-8")
+    child = subprocess.Popen(
+        [sys.executable, "-c", _CHILD_LOCK_HOLDER, str(p)],
+        stdout=subprocess.PIPE, text=True, encoding="utf-8",
+    )
+    try:
+        line = child.stdout.readline()
+        assert line.strip() == "locked"
+
+        start = time.monotonic()
+        with open(p, "r+b") as f:
+            compat.lock(f)
+            elapsed = time.monotonic() - start
+            compat.unlock(f)
+
+        assert elapsed >= 1.0
+    finally:
+        assert child.wait(timeout=5) == 0
 
 
 def test_user_home_honours_HOME_env(tmp_path, monkeypatch):

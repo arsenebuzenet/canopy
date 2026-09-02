@@ -11,6 +11,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +31,15 @@ if IS_WINDOWS:
         # msvcrt locks a byte range from the current position; one byte is
         # enough to serialise writers, and locking past EOF is allowed, so
         # append-mode handles work too.
-        msvcrt.locking(_fd(f), msvcrt.LK_LOCK, 1)
+        # LK_LOCK gives up after ~10s and raises OSError, unlike flock(LOCK_EX),
+        # which blocks indefinitely — so poll LK_NBLCK ourselves to match it.
+        fd = _fd(f)
+        while True:
+            try:
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                return
+            except OSError:
+                time.sleep(0.05)
 
     def unlock(f: Any) -> None:
         try:
