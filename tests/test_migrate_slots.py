@@ -84,7 +84,7 @@ def test_migrate_moves_feature_dirs_to_slots(workspace_v2_layout):
 
     # Result shape
     assert "moved" in result
-    assert any("auth-flow/repo-a" in m["from"] for m in result["moved"])
+    assert any("auth-flow/repo-a" in Path(m["from"]).as_posix() for m in result["moved"])
     assert result["slots"]["worktree-1"] == "auth-flow"
 
 

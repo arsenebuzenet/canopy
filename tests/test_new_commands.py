@@ -173,8 +173,8 @@ class TestWorktreeRepo:
         # Main repo should list both worktrees
         worktrees = git.worktree_list(api)
         assert len(worktrees) == 2
-        wt_paths = {wt["path"] for wt in worktrees}
-        assert str(api) in wt_paths or str(api.resolve()) in wt_paths
+        wt_paths = {Path(wt["path"]).resolve() for wt in worktrees}
+        assert api.resolve() in wt_paths
 
         # Cleanup
         _git(["worktree", "remove", str(wt_path)], cwd=api)
