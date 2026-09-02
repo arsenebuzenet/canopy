@@ -2,6 +2,7 @@
 """Platform seam — the only module allowed to branch on the OS."""
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 import time
@@ -10,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from canopy import compat
+from canopy.actions.errors import BlockerError
 
 _CHILD_LOCK_HOLDER = """
 import sys
@@ -154,7 +156,37 @@ def test_run_shell_uses_cwd(tmp_path):
 def test_find_bash_is_not_wsl_launcher():
     bash = compat.find_bash()
     assert bash is not None
+    assert str(bash).lower().endswith("bin\\bash.exe")
     assert "system32" not in str(bash).lower()
+
+
+@pytest.mark.skipif(not compat.IS_WINDOWS, reason="Windows only")
+def test_find_bash_walks_up_from_the_git_executable(monkeypatch):
+    """Under Git Bash `which("git")` is …\\Git\\mingw64\\bin\\git.exe — bash is
+    three levels up, and PATH may only offer WSL's System32 launcher."""
+    real_which = shutil.which
+    assert real_which("git"), "git must be on PATH for this test"
+
+    def fake_which(name, *a, **kw):
+        if name == "bash":
+            return "C:\\Windows\\System32\\bash.exe"
+        return real_which(name, *a, **kw)
+
+    monkeypatch.setattr(compat.shutil, "which", fake_which)
+    bash = compat.find_bash()
+    assert bash is not None
+    assert str(bash).lower().endswith("bin\\bash.exe")
+    assert "system32" not in str(bash).lower()
+
+
+def test_run_shell_blocks_loudly_when_git_bash_is_missing(monkeypatch):
+    """No Git Bash must be a structured blocker, never a silent cmd.exe fallback."""
+    monkeypatch.setattr(compat, "IS_WINDOWS", True)
+    monkeypatch.setattr(compat, "find_bash", lambda: None)
+    with pytest.raises(BlockerError) as excinfo:
+        compat.run_shell("echo x")
+    assert excinfo.value.code == "bash_not_found"
+    assert excinfo.value.fix_actions
 
 
 def test_detached_popen_kwargs_spawns(tmp_path):

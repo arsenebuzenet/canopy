@@ -95,11 +95,14 @@ def find_bash() -> Path | None:
         return None
     git = shutil.which("git")
     if git:
-        root = Path(git).resolve().parent.parent
-        for rel in ("bin/bash.exe", "usr/bin/bash.exe"):
-            candidate = root / rel
-            if candidate.exists():
-                return candidate
+        # PATH may expose either …\Git\cmd\git.exe or, under Git Bash,
+        # …\Git\mingw64\bin\git.exe — the install root is one to three levels
+        # up, so try every parent instead of assuming a fixed depth.
+        for root in list(Path(git).resolve().parents)[:4]:
+            for rel in ("bin/bash.exe", "usr/bin/bash.exe"):
+                candidate = root / rel
+                if candidate.exists():
+                    return candidate
     found = shutil.which("bash")
     if found and "system32" not in found.lower():
         return Path(found)
@@ -114,8 +117,21 @@ def run_shell(cmd: str, *, cwd: Path | str | None = None, **kw: Any) -> subproce
     """
     if IS_WINDOWS:
         bash = find_bash()
-        if bash is not None:
-            return subprocess.run([str(bash), "-c", cmd], cwd=cwd, **kw)
+        if bash is None:
+            # Falling back to cmd.exe here would mangle the command line into
+            # something that fails obscurely later; say so up front instead.
+            from .actions.errors import BlockerError, FixAction  # circular at import time
+
+            raise BlockerError(
+                code="bash_not_found",
+                what="Git for Windows bash not found; canopy runs shell "
+                     "commands through Git Bash on Windows",
+                fix_actions=[FixAction(
+                    action="install", args={}, safe=True,
+                    preview="winget install --id Git.Git",
+                )],
+            )
+        return subprocess.run([str(bash), "-c", cmd], cwd=cwd, **kw)
     return subprocess.run(cmd, cwd=cwd, shell=True, **kw)
 
 
