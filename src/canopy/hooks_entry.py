@@ -12,10 +12,13 @@ from pathlib import Path
 
 
 def _utf8_stdio() -> None:
-    """Force UTF-8 on stdout/stderr so blocked-reason text (e.g. em dashes)
-    survives Windows' cp1252 default console encoding intact for the parent
-    process and for Claude Code, which reads hook output as UTF-8."""
-    for stream in (sys.stdout, sys.stderr):
+    """Force UTF-8 on all three streams: Claude Code writes the payload as
+    UTF-8 and reads hook output as UTF-8, but a piped stdio on Windows
+    defaults to the ANSI codepage — which would mojibake a non-ASCII cwd or
+    command on the way in and a blocked reason (em dashes) on the way out.
+
+    Callers must invoke this before the first read of ``sys.stdin``."""
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
         try:
             stream.reconfigure(encoding="utf-8")
         except (AttributeError, ValueError):
