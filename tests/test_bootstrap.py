@@ -318,3 +318,23 @@ def test_deps_marker_does_not_dirty_worktree(canopy_toml_for_workspace, monkeypa
     # Second run must still short-circuit on the out-of-tree fingerprint.
     bootstrap.bootstrap_repo(_ws(root), "auth-flow", "repo-a", wt, steps=("deps",))
     assert len(ran) == 1
+
+
+def test_spawn_deps_background_uses_platform_detach(monkeypatch, workspace_with_bootstrap_config):
+    import subprocess
+    from canopy import compat
+    from canopy.actions import slot_bootstrap
+    ws = workspace_with_bootstrap_config
+    seen = {}
+
+    def fake_popen(argv, **kw):
+        seen.update(kw)
+        class P:
+            pid = 1
+        return P()
+
+    monkeypatch.delenv("CANOPY_NO_BG_BOOTSTRAP", raising=False)
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+    slot_bootstrap._spawn_deps_background(ws, "auth-flow", "worktree-1")
+    for k, v in compat.detached_popen_kwargs().items():
+        assert seen[k] == v
