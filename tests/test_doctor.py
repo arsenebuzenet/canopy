@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -52,6 +53,19 @@ from canopy.workspace.workspace import Workspace
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
+
+
+def _fake_canopy(tmp_path, version: str) -> Path:
+    """A runnable stand-in for `canopy --version` on the current platform."""
+    from canopy.compat import IS_WINDOWS
+    if IS_WINDOWS:
+        fake = tmp_path / "canopy.cmd"
+        fake.write_text(f"@echo canopy {version}\r\n", encoding="utf-8")
+    else:
+        fake = tmp_path / "canopy"
+        fake.write_text(f"#!/bin/sh\necho 'canopy {version}'\n", encoding="utf-8")
+        fake.chmod(0o755)
+    return fake
 
 
 def _make_workspace(workspace_dir, repos=("repo-a", "repo-b")) -> Workspace:
@@ -287,6 +301,7 @@ def test_repair_hook_missing_installs(workspace_with_feature):
     assert issues[0].repo not in {i.repo for i in remaining}
 
 
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="no execute bit on NTFS")
 def test_hook_chained_unsafe_when_chained_not_executable(workspace_with_feature):
     """Install hook with a chained user hook, then strip exec bit."""
     repo = workspace_with_feature / "repo-a"
@@ -405,9 +420,7 @@ def test_check_cli_stale_when_binary_missing(workspace_with_feature):
 
 def test_check_cli_stale_when_older(workspace_with_feature, tmp_path):
     ws = _make_workspace(workspace_with_feature)
-    fake = tmp_path / "canopy"
-    fake.write_text("#!/bin/sh\necho 'canopy 0.0.1'\n", encoding="utf-8")
-    fake.chmod(0o755)
+    fake = _fake_canopy(tmp_path, "0.0.1")
     with patch("canopy.actions.doctor.shutil.which", return_value=str(fake)):
         issues = check_cli_stale(ws)
     assert len(issues) == 1
@@ -417,9 +430,7 @@ def test_check_cli_stale_when_older(workspace_with_feature, tmp_path):
 def test_check_cli_stale_when_current(workspace_with_feature, tmp_path):
     from canopy import __version__
     ws = _make_workspace(workspace_with_feature)
-    fake = tmp_path / "canopy"
-    fake.write_text(f"#!/bin/sh\necho 'canopy {__version__}'\n", encoding="utf-8")
-    fake.chmod(0o755)
+    fake = _fake_canopy(tmp_path, __version__)
     with patch("canopy.actions.doctor.shutil.which", return_value=str(fake)):
         assert check_cli_stale(ws) == []
 
@@ -499,6 +510,7 @@ def _ps_stub(rows: list[tuple[int, int, str]]):
     return SimpleNamespace(returncode=0, stdout=text, stderr="")
 
 
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="ps-based orphan detection is a no-op on windows")
 def test_check_mcp_orphans_detects_ppid_1(workspace_with_feature, monkeypatch):
     """A canopy-mcp process whose parent died (PPID=1) is an orphan."""
     rows = [
@@ -532,6 +544,7 @@ def test_check_mcp_orphans_clean_when_no_orphans(workspace_with_feature, monkeyp
     assert check_mcp_orphans(ws) == []
 
 
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="ps-based orphan detection is a no-op on windows")
 def test_check_mcp_orphans_skips_self_and_parent(workspace_with_feature, monkeypatch):
     """Doctor invoked from inside an MCP context shouldn't flag itself."""
     import os

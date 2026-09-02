@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from .. import __version__
+from .. import compat
 from ..git import hooks as canopy_hooks
 from ..git import repo as git
 from ..workspace.workspace import Workspace
@@ -345,7 +346,7 @@ def check_hook_chained_unsafe(workspace: Workspace) -> list[Issue]:
             # Reference is benign — the hook checks before exec'ing — but
             # it might indicate the user expected a chained hook.
             continue
-        if not os.access(chained, os.X_OK):
+        if not compat.IS_WINDOWS and not os.access(chained, os.X_OK):
             issues.append(Issue(
                 code="hook_chained_unsafe",
                 severity="warn",
@@ -885,6 +886,8 @@ def _list_orphan_canopy_mcp_pids() -> list[int]:
     Skips the current process and its ancestors so a doctor invocation
     from inside an MCP context can't report itself.
     """
+    if compat.IS_WINDOWS:
+        return []   # no `ps`, and "reparented to PID 1" has no Windows equivalent
     try:
         out = subprocess.run(
             ["ps", "-eo", "pid=,ppid=,command="],
@@ -1149,7 +1152,7 @@ def repair_hook_chained_unsafe(workspace: Workspace, issue: Issue) -> RepairResu
                             error=str(e), repo=repo_name)
     hooks_dir = canopy_hooks.resolve_hooks_dir(rs.abs_path)
     chained = hooks_dir / "post-checkout.canopy-chained"
-    if chained.exists() and not os.access(chained, os.X_OK):
+    if chained.exists() and not compat.IS_WINDOWS and not os.access(chained, os.X_OK):
         mode = chained.stat().st_mode
         chained.chmod(mode | 0o111)
         return RepairResult(code=issue.code, success=True, repo=repo_name,
@@ -1251,7 +1254,7 @@ def repair_mcp_orphans(workspace: Workspace, issue: Issue) -> RepairResult:
             except ProcessLookupError:
                 continue   # gone, good
             try:
-                os.kill(pid, signal.SIGKILL)
+                os.kill(pid, signal.SIGTERM if compat.IS_WINDOWS else signal.SIGKILL)
             except ProcessLookupError:
                 continue
             except Exception as e:  # noqa: BLE001
