@@ -13,9 +13,9 @@ def _ws(root):
 def _register(root, feature, repos):
     fp = root / ".canopy" / "features.json"
     fp.parent.mkdir(exist_ok=True)
-    data = json.loads(fp.read_text()) if fp.exists() else {}
+    data = json.loads(fp.read_text(encoding="utf-8")) if fp.exists() else {}
     data[feature] = {"repos": repos, "status": "active"}
-    fp.write_text(json.dumps(data))
+    fp.write_text(json.dumps(data), encoding="utf-8")
 
 
 def test_local_tier_reports_workspace_and_repos(canopy_toml_for_workspace):

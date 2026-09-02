@@ -73,7 +73,7 @@ class TestEvacuateRepo:
 
         # Leave a dirty file in repo-a (on auth-flow).
         dirty_file = api.abs_path / "src" / "dirty.py"
-        dirty_file.write_text("# dirty\n")
+        dirty_file.write_text("# dirty\n", encoding="utf-8")
 
         result = evacuate.evacuate_repo(
             ws,

@@ -198,7 +198,7 @@ def test_render_file_written_alongside_store(tmp_path):
     record_decision(tmp_path, "feat-1", title="t")
     assert store_path(tmp_path, "feat-1").exists()
     assert render_path(tmp_path, "feat-1").exists()
-    md = render_path(tmp_path, "feat-1").read_text()
+    md = render_path(tmp_path, "feat-1").read_text(encoding="utf-8")
     assert "# Feature: feat-1" in md
 
 

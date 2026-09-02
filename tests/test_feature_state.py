@@ -28,19 +28,19 @@ def _make_workspace(workspace_dir, repos=("repo-a", "repo-b")) -> Workspace:
 def _features_file(workspace_dir, payload):
     canopy_dir = workspace_dir / ".canopy"
     canopy_dir.mkdir(exist_ok=True)
-    (canopy_dir / "features.json").write_text(json.dumps(payload))
+    (canopy_dir / "features.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 def _set_remote(repo_path, url):
     subprocess.run(
         ["git", "remote", "add", "origin", url],
-        cwd=repo_path, check=True, capture_output=True, text=True,
+        cwd=repo_path, check=True, capture_output=True, text=True, encoding="utf-8",
     )
 
 
 def _git(args, cwd):
     subprocess.run(
-        ["git"] + args, cwd=cwd, check=True, capture_output=True, text=True,
+        ["git"] + args, cwd=cwd, check=True, capture_output=True, text=True, encoding="utf-8",
         env={**os.environ, "GIT_AUTHOR_NAME": "T", "GIT_AUTHOR_EMAIL": "t@t.com",
              "GIT_COMMITTER_NAME": "T", "GIT_COMMITTER_EMAIL": "t@t.com"},
     )
@@ -82,7 +82,7 @@ def test_in_progress_when_dirty_and_no_preflight(workspace_with_feature):
     _features_file(workspace_with_feature, {
         "auth-flow": {"repos": ["repo-a", "repo-b"], "status": "active"},
     })
-    (workspace_with_feature / "repo-a" / "src" / "app.py").write_text("modified\n")
+    (workspace_with_feature / "repo-a" / "src" / "app.py").write_text("modified\n", encoding="utf-8")
     ws = _make_workspace(workspace_with_feature)
 
     with patch("canopy.management.feature_state.gh.find_pull_request", side_effect=_no_pr), \
@@ -100,7 +100,7 @@ def test_ready_to_commit_when_preflight_passed_for_current_head(workspace_with_f
     _features_file(workspace_with_feature, {
         "auth-flow": {"repos": ["repo-a", "repo-b"], "status": "active"},
     })
-    (workspace_with_feature / "repo-a" / "src" / "app.py").write_text("modified\n")
+    (workspace_with_feature / "repo-a" / "src" / "app.py").write_text("modified\n", encoding="utf-8")
     ws = _make_workspace(workspace_with_feature)
 
     # Record a preflight result with the current HEADs as the recorded shas.
@@ -126,7 +126,7 @@ def test_stale_preflight_warns_and_falls_back_to_in_progress(workspace_with_feat
     _features_file(workspace_with_feature, {
         "auth-flow": {"repos": ["repo-a", "repo-b"], "status": "active"},
     })
-    (workspace_with_feature / "repo-a" / "src" / "app.py").write_text("modified\n")
+    (workspace_with_feature / "repo-a" / "src" / "app.py").write_text("modified\n", encoding="utf-8")
     ws = _make_workspace(workspace_with_feature)
 
     # Record with bogus old sha
@@ -161,7 +161,7 @@ def test_ready_to_push_when_clean_and_ahead(workspace_with_feature, tmp_path):
         _git(["remote", "add", "origin", str(bare)], cwd=repo_path)
         _git(["push", "origin", "auth-flow"], cwd=repo_path)
     # api makes a new commit (becomes ahead of origin/auth-flow)
-    (api / "src" / "extra.py").write_text("extra\n")
+    (api / "src" / "extra.py").write_text("extra\n", encoding="utf-8")
     _git(["add", "."], cwd=api)
     _git(["commit", "-m", "extra"], cwd=api)
 
@@ -308,7 +308,7 @@ def test_worktree_backed_feature_not_drifted_when_main_on_other_branch(
 
     # Sanity: features.json records the worktree paths
     features = json.loads(
-        (workspace_dir / ".canopy" / "features.json").read_text(),
+        (workspace_dir / ".canopy" / "features.json").read_text(encoding="utf-8"),
     )
     assert features["sin-9-demo"]["use_worktrees"] is True
     assert "worktree_paths" in features["sin-9-demo"]
@@ -378,7 +378,7 @@ def test_per_repo_facts_use_worktree_path_for_dirty_check(workspace_dir):
 
     # Modify a file inside the api worktree
     wt_api = workspace_dir / ".canopy" / "worktrees" / slot_id / "repo-a"
-    (wt_api / "src" / "app.py").write_text("dirty in worktree\n")
+    (wt_api / "src" / "app.py").write_text("dirty in worktree\n", encoding="utf-8")
 
     with patch("canopy.management.feature_state.gh.find_pull_request",
                side_effect=_no_pr), \

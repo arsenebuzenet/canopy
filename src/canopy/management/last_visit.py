@@ -29,7 +29,7 @@ def _load(workspace: Workspace) -> dict[str, dict[str, Any]]:
     if not p.exists():
         return {}
     try:
-        return json.loads(p.read_text())
+        return json.loads(p.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
 
@@ -41,7 +41,7 @@ def _save(workspace: Workspace, data: dict) -> None:
         prefix=f".{p.name}.", suffix=".tmp", dir=str(p.parent)
     )
     try:
-        with os.fdopen(fd, "w") as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, sort_keys=True)
         os.replace(tmp, p)
     except Exception:

@@ -108,7 +108,7 @@ def test_resolutions_for_feature_filters(tmp_path):
 def test_load_returns_empty_on_corrupt_file(tmp_path):
     state = _state_file(tmp_path)
     state.parent.mkdir(parents=True, exist_ok=True)
-    state.write_text("{ this is not valid json")
+    state.write_text("{ this is not valid json", encoding="utf-8")
     assert load_resolutions(tmp_path) == {}
 
 
@@ -117,7 +117,7 @@ def test_persisted_file_is_pretty_json(tmp_path):
         tmp_path, comment_id=1, feature="f", repo="r",
         commit_sha="x", comment_title="t",
     )
-    raw = _state_file(tmp_path).read_text()
+    raw = _state_file(tmp_path).read_text(encoding="utf-8")
     # indent=2 + sort_keys → human-diffable
     assert "\n" in raw
     parsed = json.loads(raw)

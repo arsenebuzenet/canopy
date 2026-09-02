@@ -106,7 +106,7 @@ def read_state(workspace: Workspace) -> SlotState | None:
     if not path.exists():
         return None
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
     if not isinstance(data, dict):
@@ -204,7 +204,7 @@ def write_state(workspace: Workspace, state: SlotState) -> None:
     )
     tmp = Path(tmp_name)
     try:
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(json.dumps(state.to_dict(), indent=2))
         os.replace(tmp, path)
     except BaseException:

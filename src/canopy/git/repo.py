@@ -32,7 +32,7 @@ def _run(args: list[str], cwd: Path, check: bool = True) -> str:
     result = subprocess.run(
         ["git"] + args,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         cwd=cwd,
     )
     if check and result.returncode != 0:
@@ -49,7 +49,7 @@ def _run_ok(args: list[str], cwd: Path) -> str:
     result = subprocess.run(
         ["git"] + args,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         cwd=cwd,
     )
     return result.stdout.strip() if result.returncode == 0 else ""
@@ -88,7 +88,7 @@ def is_dirty(repo_path: Path) -> bool:
     """Check if the working tree has any changes."""
     result = subprocess.run(
         ["git", "status", "--porcelain"],
-        capture_output=True, text=True, cwd=repo_path,
+        capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
     )
     return bool(result.stdout.strip())
 
@@ -111,7 +111,7 @@ def default_branch(repo_path: Path) -> str:
     for candidate in ("main", "master"):
         result = subprocess.run(
             ["git", "rev-parse", "--verify", candidate],
-            capture_output=True, text=True, cwd=repo_path,
+            capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
         )
         if result.returncode == 0:
             return candidate
@@ -170,7 +170,7 @@ def changed_files_with_status(repo_path: Path, branch: str, base: str) -> list[d
     # Porcelain output preserves leading spaces; don't use _run_ok (which strips).
     raw = subprocess.run(
         ["git", "status", "--porcelain"],
-        capture_output=True, text=True, cwd=repo_path,
+        capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
     ).stdout
     for line in raw.splitlines():
         if len(line) < 4:
@@ -201,7 +201,7 @@ def branch_exists(repo_path: Path, branch: str) -> bool:
     """Check if a local branch exists."""
     result = subprocess.run(
         ["git", "rev-parse", "--verify", branch],
-        capture_output=True, text=True, cwd=repo_path,
+        capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
     )
     return result.returncode == 0
 
@@ -299,7 +299,7 @@ def has_upstream(repo_path: Path, branch: str | None = None) -> bool:
     target = f"{branch}@{{upstream}}" if branch else "@{upstream}"
     result = subprocess.run(
         ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", target],
-        capture_output=True, text=True, cwd=repo_path,
+        capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
     )
     return result.returncode == 0
 
@@ -323,7 +323,7 @@ def unpushed_count(repo_path: Path, branch: str | None = None) -> int:
     upstream = f"{branch}@{{upstream}}" if branch else "@{upstream}"
     result = subprocess.run(
         ["git", "rev-list", "--count", f"{upstream}..{target}"],
-        capture_output=True, text=True, cwd=repo_path,
+        capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
     )
     if result.returncode != 0:
         return 0
@@ -370,7 +370,7 @@ def push(
 
     result = subprocess.run(
         ["git"] + args,
-        capture_output=True, text=True, cwd=repo_path,
+        capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
     )
     if result.returncode == 0:
         out: dict[str, Any] = {
@@ -481,7 +481,7 @@ def status_porcelain(repo_path: Path) -> list[dict]:
     # Use raw subprocess to preserve leading spaces (porcelain format uses them)
     result = subprocess.run(
         ["git", "status", "--porcelain"],
-        capture_output=True, text=True, cwd=repo_path,
+        capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
     )
     raw = result.stdout
     if not raw or not raw.strip():

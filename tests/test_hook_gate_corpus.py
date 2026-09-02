@@ -17,7 +17,7 @@ CORPUS = Path(__file__).parent / "fixtures" / "hook_gate_corpus.jsonl"
 def test_corpus_never_raises():
     from canopy.actions.hook_gate import resolve_segments
     n = 0
-    for line in CORPUS.read_text().splitlines():
+    for line in CORPUS.read_text(encoding="utf-8").splitlines():
         entry = json.loads(line)
         cwd = Path(entry.get("cwd") or "/tmp")
         segs = resolve_segments(entry["command"], cwd=cwd)   # must not raise
@@ -33,7 +33,7 @@ def test_corpus_mutation_detection_rate():
     from canopy.actions.hook_gate import resolve_segments, is_mutation
     MUTS = {"commit", "push", "merge", "rebase", "stash", "reset", "add"}
     total = hit = 0
-    for line in CORPUS.read_text().splitlines():
+    for line in CORPUS.read_text(encoding="utf-8").splitlines():
         entry = json.loads(line)
         if not (set(entry.get("subcommands") or []) & MUTS):
             continue

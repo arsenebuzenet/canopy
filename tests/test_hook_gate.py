@@ -287,7 +287,7 @@ def _write_features(ws, features: dict):
     fpath = _root(ws) / ".canopy" / "features.json"
     fpath.parent.mkdir(exist_ok=True)
     fpath.write_text(json.dumps(
-        {name: {"repos": repos} for name, repos in features.items()}))
+        {name: {"repos": repos} for name, repos in features.items()}), encoding="utf-8")
 
 
 def test_gate_blocks_commit_on_drifted_trunk(workspace_with_canonical_only):
@@ -328,7 +328,7 @@ def test_trunk_drift_message_no_canonical(workspace_with_canonical_only):
     ws = workspace_with_canonical_only
     _write_features(ws, {"Y": ["repo-a", "repo-b"]})
     (_root(ws) / ".canopy" / "state" / "slots.json").write_text(json.dumps(
-        {"slot_count": 2, "canonical": None, "slots": {}, "last_touched": {}}))
+        {"slot_count": 2, "canonical": None, "slots": {}, "last_touched": {}}), encoding="utf-8")
     subprocess.run(["git", "checkout", "Y"], cwd=_root(ws) / "repo-a",
                    check=True, capture_output=True)
     d = gate_command(ws, 'git commit -m "x"', cwd=_root(ws) / "repo-a")
@@ -348,7 +348,7 @@ def test_branch_owner_respects_per_repo_branches_map(workspace_with_canonical_on
         "X": {"repos": ["repo-a", "repo-b"]},
         "Y": {"repos": ["repo-a", "repo-b"],
               "branches": {"repo-a": "custom-branch-name"}},
-    }))
+    }), encoding="utf-8")
     subprocess.run(["git", "checkout", "-b", "custom-branch-name"],
                    cwd=_root(ws) / "repo-a", check=True, capture_output=True)
     d = gate_command(ws, 'git commit -m "x"', cwd=_root(ws) / "repo-a")

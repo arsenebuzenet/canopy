@@ -52,7 +52,7 @@ def test_agent_core_never_imports_management():
         p = SRC / rel
         if not p.exists():
             continue
-        text = p.read_text()
+        text = p.read_text(encoding="utf-8")
         for name in MANAGEMENT_NAMES:
             if _refs(text, name):
                 violations.append(f"{rel} references management module '{name}'")

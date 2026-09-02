@@ -61,12 +61,12 @@ def _is_active(ws, feature) -> bool:
 def _features_file(workspace_dir, payload):
     canopy_dir = workspace_dir / ".canopy"
     canopy_dir.mkdir(exist_ok=True)
-    (canopy_dir / "features.json").write_text(json.dumps(payload))
+    (canopy_dir / "features.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 def _git(args, cwd):
     subprocess.run(
-        ["git"] + args, cwd=cwd, check=True, capture_output=True, text=True,
+        ["git"] + args, cwd=cwd, check=True, capture_output=True, text=True, encoding="utf-8",
         env={**os.environ, "GIT_AUTHOR_NAME": "T", "GIT_AUTHOR_EMAIL": "t@t.com",
              "GIT_COMMITTER_NAME": "T", "GIT_COMMITTER_EMAIL": "t@t.com"},
     )
@@ -133,7 +133,7 @@ class TestActiveRotation:
         # Make X canonical, dirty it
         switch(ws, "auth-flow")
         scratch = workspace_with_feature / "repo-a" / "scratch.txt"
-        scratch.write_text("uncommitted scribbles\n")
+        scratch.write_text("uncommitted scribbles\n", encoding="utf-8")
 
         # Evacuate via switch
         switch(ws, "feat-b")
@@ -141,7 +141,7 @@ class TestActiveRotation:
         # File should follow auth-flow into its warm worktree
         wt_api = _warm_worktree_path(ws,"auth-flow", "repo-a")
         moved = wt_api / "scratch.txt"
-        assert moved.exists() and "uncommitted scribbles" in moved.read_text()
+        assert moved.exists() and "uncommitted scribbles" in moved.read_text(encoding="utf-8")
         # Main api repo should not have it anymore
         assert not scratch.exists()
 
@@ -167,14 +167,14 @@ class TestWindDownMode:
 
         switch(ws, "auth-flow")
         # Dirty main (api side, which is on auth-flow)
-        (workspace_with_feature / "repo-a" / "more.txt").write_text("untracked\n")
+        (workspace_with_feature / "repo-a" / "more.txt").write_text("untracked\n", encoding="utf-8")
 
         switch(ws, "feat-b", release_current=True)
 
         # Inspect api stashes — should have a [canopy auth-flow ...] entry
         stash_list_output = subprocess.run(
             ["git", "stash", "list"], cwd=workspace_with_feature / "repo-a",
-            capture_output=True, text=True, check=True,
+            capture_output=True, text=True, encoding="utf-8", check=True,
         ).stdout
         assert "canopy auth-flow" in stash_list_output
         assert "released to cold" in stash_list_output
@@ -250,7 +250,7 @@ class TestCapReached:
         switch(ws, "feat-b")
         # Dirty the auth-flow warm worktree
         wt_api = _warm_worktree_path(ws,"auth-flow", "repo-a")
-        (wt_api / "evicted_work.txt").write_text("about to be evicted\n")
+        (wt_api / "evicted_work.txt").write_text("about to be evicted\n", encoding="utf-8")
 
         # Phase-4: bare cap-fire raises; explicit evict takes the evict path.
         result = switch(ws, "feat-c", evict="auth-flow")
@@ -264,7 +264,7 @@ class TestCapReached:
         # The auth-flow branch in api should have a tagged stash recoverable
         stashes = subprocess.run(
             ["git", "stash", "list"], cwd=workspace_with_feature / "repo-a",
-            capture_output=True, text=True, check=True,
+            capture_output=True, text=True, encoding="utf-8", check=True,
         ).stdout
         assert "canopy auth-flow" in stashes
         assert "auto-evicted" in stashes

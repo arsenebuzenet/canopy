@@ -85,7 +85,7 @@ def version() -> dict:
         try:
             out = subprocess.run(
                 [cli_path, "--version"],
-                capture_output=True, text=True, check=False, timeout=5,
+                capture_output=True, text=True, encoding="utf-8", check=False, timeout=5,
             )
             if out.returncode == 0:
                 # "canopy 0.1.0" → "0.1.0"
@@ -1018,7 +1018,7 @@ def preflight(cwd: str | None = None) -> dict:
 #     toml_path = root / "canopy.toml"
 #     written = False
 #     if not dry_run:
-#         toml_path.write_text(toml_content)
+#         toml_path.write_text(toml_content, encoding="utf-8")
 #         written = True
 #
 #     all_dirs = [

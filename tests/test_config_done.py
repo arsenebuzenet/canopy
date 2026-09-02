@@ -30,7 +30,7 @@ def _git(args, cwd):
         "GIT_COMMITTER_EMAIL": "test@test.com",
     }
     result = subprocess.run(
-        ["git"] + args, capture_output=True, text=True, cwd=cwd, env=env,
+        ["git"] + args, capture_output=True, text=True, encoding="utf-8", cwd=cwd, env=env,
     )
     if result.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {result.stderr}")
@@ -242,7 +242,7 @@ class TestFeatureDone:
         features = coordinator._load_features()
         slot_id = features["dirty-test"]["slot_id"]
         wt_path = canopy_toml / ".canopy" / "worktrees" / slot_id / "repo-a"
-        (wt_path / "dirty_file.py").write_text("# dirty\n")
+        (wt_path / "dirty_file.py").write_text("# dirty\n", encoding="utf-8")
 
         with pytest.raises(ValueError, match="uncommitted changes"):
             coordinator.done("dirty-test")

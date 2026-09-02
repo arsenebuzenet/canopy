@@ -15,7 +15,7 @@ def _run_gate(payload_text: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, "-c",
          "from canopy.hooks_entry import gate_main; gate_main()"],
-        input=payload_text, capture_output=True, text=True,
+        input=payload_text, capture_output=True, text=True, encoding="utf-8",
     )
 
 

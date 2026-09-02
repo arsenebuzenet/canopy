@@ -50,7 +50,7 @@ def load_resolutions(workspace_root: Path) -> dict[str, dict[str, Any]]:
     if not path.exists():
         return {}
     try:
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except (json.JSONDecodeError, OSError):
         return {}
@@ -111,7 +111,7 @@ def _atomic_write(path: Path, data: dict) -> None:
         prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent),
     )
     try:
-        with os.fdopen(fd, "w") as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, sort_keys=True)
             f.write("\n")
         os.replace(tmp, path)

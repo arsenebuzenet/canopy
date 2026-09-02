@@ -84,7 +84,7 @@ def test_slot_clear_refuses_when_dirty_and_stash_fails(workspace_with_slots, mon
     """If the slot is dirty and stash fails, slot_clear raises rather than nuking work."""
     # Make the slot dirty
     slot_path = workspace_with_slots.config.root / ".canopy/worktrees/worktree-1/repo-a"
-    (slot_path / "dirty.txt").write_text("uncommitted work")
+    (slot_path / "dirty.txt").write_text("uncommitted work", encoding="utf-8")
     # Force stash_for_evacuation to fail
     monkeypatch.setattr(
         "canopy.actions.evacuate.stash_for_evacuation",

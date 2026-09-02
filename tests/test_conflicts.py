@@ -18,7 +18,7 @@ from canopy.workspace.workspace import Workspace
 def _git(args: list[str], cwd: Path) -> str:
     res = subprocess.run(
         ["git"] + args,
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True, text=True, encoding="utf-8", cwd=cwd,
         env={**os.environ,
              "GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "test@test.com",
              "GIT_COMMITTER_NAME": "Test", "GIT_COMMITTER_EMAIL": "test@test.com"},
@@ -36,9 +36,9 @@ def two_features(workspace_dir, canopy_toml) -> Workspace:
     # feature_a: edit models.py + auth.py
     _git(["checkout", "-b", "feature-a"], cwd=api)
     (api / "src" / "models.py").write_text(
-        "class User:\n    name: str\n    email: str\n    token: str\n"
+        "class User:\n    name: str\n    email: str\n    token: str\n", encoding="utf-8"
     )
-    (api / "src" / "auth.py").write_text("def login(): pass\n")
+    (api / "src" / "auth.py").write_text("def login(): pass\n", encoding="utf-8")
     _git(["add", "."], cwd=api)
     _git(["commit", "-m", "feature-a"], cwd=api)
 
@@ -46,9 +46,9 @@ def two_features(workspace_dir, canopy_toml) -> Workspace:
     _git(["checkout", "main"], cwd=api)
     _git(["checkout", "-b", "feature-b"], cwd=api)
     (api / "src" / "models.py").write_text(
-        "class User:\n    name: str\n    email: str\n    role: str\n"
+        "class User:\n    name: str\n    email: str\n    role: str\n", encoding="utf-8"
     )
-    (api / "src" / "rbac.py").write_text("def can(): return True\n")
+    (api / "src" / "rbac.py").write_text("def can(): return True\n", encoding="utf-8")
     _git(["add", "."], cwd=api)
     _git(["commit", "-m", "feature-b"], cwd=api)
     _git(["checkout", "main"], cwd=api)
@@ -62,7 +62,7 @@ def two_features(workspace_dir, canopy_toml) -> Workspace:
     }
     state_dir = workspace_dir / ".canopy"
     state_dir.mkdir(exist_ok=True)
-    (state_dir / "features.json").write_text(json.dumps(features))
+    (state_dir / "features.json").write_text(json.dumps(features), encoding="utf-8")
 
     return Workspace(load_config(workspace_dir))
 

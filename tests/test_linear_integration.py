@@ -65,7 +65,7 @@ class TestMcpConfig:
             }
         }
         (tmp_path / ".canopy").mkdir()
-        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config))
+        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config), encoding="utf-8")
 
         result = _load_mcp_configs(tmp_path)
         assert "linear" in result
@@ -74,7 +74,7 @@ class TestMcpConfig:
     def test_get_mcp_config_found(self, tmp_path):
         config = {"linear": {"command": "test"}}
         (tmp_path / ".canopy").mkdir()
-        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config))
+        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config), encoding="utf-8")
 
         result = get_mcp_config(tmp_path, "linear")
         assert result == {"command": "test"}
@@ -87,7 +87,7 @@ class TestMcpConfig:
 
         config = {"linear": {"command": "test"}}
         (tmp_path / ".canopy").mkdir()
-        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config))
+        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config), encoding="utf-8")
         assert is_mcp_configured(tmp_path, "linear") is True
 
     def test_load_from_dot_mcp_json(self, tmp_path):
@@ -101,7 +101,7 @@ class TestMcpConfig:
                 }
             }
         }
-        (tmp_path / ".mcp.json").write_text(json.dumps(shared))
+        (tmp_path / ".mcp.json").write_text(json.dumps(shared), encoding="utf-8")
 
         result = _load_mcp_configs(tmp_path)
         assert "linear" in result
@@ -116,11 +116,11 @@ class TestMcpConfig:
                         "linear": {"command": "old", "env": {"LINEAR_API_KEY": "from-shared"}},
                     }
                 }
-            )
+            ), encoding="utf-8"
         )
         (tmp_path / ".canopy").mkdir()
         (tmp_path / ".canopy" / "mcps.json").write_text(
-            json.dumps({"linear": {"command": "new", "env": {"LINEAR_API_KEY": "from-canopy"}}})
+            json.dumps({"linear": {"command": "new", "env": {"LINEAR_API_KEY": "from-canopy"}}}), encoding="utf-8"
         )
 
         result = _load_mcp_configs(tmp_path)
@@ -130,11 +130,11 @@ class TestMcpConfig:
     def test_merges_non_overlapping_servers(self, tmp_path):
         """Both files contribute when they define different servers."""
         (tmp_path / ".mcp.json").write_text(
-            json.dumps({"mcpServers": {"linear": {"command": "linear-mcp-server"}}})
+            json.dumps({"mcpServers": {"linear": {"command": "linear-mcp-server"}}}), encoding="utf-8"
         )
         (tmp_path / ".canopy").mkdir()
         (tmp_path / ".canopy" / "mcps.json").write_text(
-            json.dumps({"github": {"command": "github-mcp-server"}})
+            json.dumps({"github": {"command": "github-mcp-server"}}), encoding="utf-8"
         )
 
         result = _load_mcp_configs(tmp_path)
@@ -223,7 +223,7 @@ class TestListMyIssues:
     def test_returns_normalized_issues(self, tmp_path):
         config = {"linear": {"command": "echo"}}
         (tmp_path / ".canopy").mkdir()
-        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config))
+        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config), encoding="utf-8")
 
         @dataclass
         class FakeBlock:
@@ -263,7 +263,7 @@ class TestListMyIssues:
     def test_returns_empty_when_all_tools_fail(self, tmp_path):
         config = {"linear": {"command": "echo"}}
         (tmp_path / ".canopy").mkdir()
-        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config))
+        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config), encoding="utf-8")
 
         with patch(
             "canopy.integrations.linear.call_tool",
@@ -318,7 +318,7 @@ class TestGetIssueCanonicalShape:
     def test_get_issue_with_canonical_id_arg_succeeds(self, tmp_path):
         config = {"linear": {"command": "echo"}}
         (tmp_path / ".canopy").mkdir()
-        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config))
+        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config), encoding="utf-8")
 
         captured_calls = []
 
@@ -342,7 +342,7 @@ class TestGetIssueCanonicalShape:
         """Inline MCP error from one attempt → fall through, not normalize as empty."""
         config = {"linear": {"command": "echo"}}
         (tmp_path / ".canopy").mkdir()
-        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config))
+        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config), encoding="utf-8")
 
         err = _Result(content=[_Block(text="MCP error -32602: Input validation error")])
         ok = _Result(content=[_Block(text=json.dumps({"id": "SIN-5", "title": "Real"}))])
@@ -363,7 +363,7 @@ class TestListMyIssuesStrict:
     def test_strict_raises_on_all_fail(self, tmp_path):
         config = {"linear": {"command": "echo"}}
         (tmp_path / ".canopy").mkdir()
-        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config))
+        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config), encoding="utf-8")
 
         with patch(
             "canopy.integrations.linear.call_tool",
@@ -381,7 +381,7 @@ class TestListMyIssuesStrict:
         """list_my_issues (soft) preserves the no-autocomplete contract."""
         config = {"linear": {"command": "echo"}}
         (tmp_path / ".canopy").mkdir()
-        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config))
+        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config), encoding="utf-8")
 
         with patch(
             "canopy.integrations.linear.call_tool",
@@ -394,7 +394,7 @@ class TestListMyIssuesStrict:
         get filtered agent-side since list_issues no longer accepts state."""
         config = {"linear": {"command": "echo"}}
         (tmp_path / ".canopy").mkdir()
-        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config))
+        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config), encoding="utf-8")
 
         payload = json.dumps({
             "issues": [
@@ -422,7 +422,7 @@ class TestListMyIssuesStrict:
         """Legacy MCP responses without statusType pass through unfiltered."""
         config = {"linear": {"command": "echo"}}
         (tmp_path / ".canopy").mkdir()
-        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config))
+        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config), encoding="utf-8")
 
         payload = json.dumps({
             "issues": [
@@ -444,7 +444,7 @@ class TestListMyIssuesStrict:
         list_issues({assignee: 'me', state: 'open'}) which Linear rejects."""
         config = {"linear": {"command": "echo"}}
         (tmp_path / ".canopy").mkdir()
-        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config))
+        (tmp_path / ".canopy" / "mcps.json").write_text(json.dumps(config), encoding="utf-8")
 
         captured = []
 
@@ -485,7 +485,7 @@ class TestFeatureCreateWithLinear:
 
         # Verify persisted in features.json
         features_path = workspace_dir / ".canopy" / "features.json"
-        features = json.loads(features_path.read_text())
+        features = json.loads(features_path.read_text(encoding="utf-8"))
         assert features["payment-flow"]["linear_issue"] == "SIN-123"
         assert features["payment-flow"]["linear_title"] == "Add payment processing"
 

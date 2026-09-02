@@ -50,7 +50,7 @@ with open(path, "r+", encoding="utf-8") as f:
 
 def _git(args, cwd):
     subprocess.run(
-        ["git"] + args, cwd=cwd, check=True, capture_output=True, text=True,
+        ["git"] + args, cwd=cwd, check=True, capture_output=True, text=True, encoding="utf-8",
         env={**os.environ, "GIT_AUTHOR_NAME": "T", "GIT_AUTHOR_EMAIL": "t@t.com",
              "GIT_COMMITTER_NAME": "T", "GIT_COMMITTER_EMAIL": "t@t.com"},
     )
@@ -64,7 +64,7 @@ def workspace(tmp_path):
     api = root / "repo-a"
     api.mkdir()
     _git(["init", "-b", "main"], cwd=api)
-    (api / "README").write_text("x\n")
+    (api / "README").write_text("x\n", encoding="utf-8")
     _git(["add", "."], cwd=api)
     _git(["commit", "-m", "init"], cwd=api)
     return root, api
@@ -76,7 +76,7 @@ def test_install_creates_hook(workspace):
     assert result.action == "installed"
     hook = api / ".git" / "hooks" / "post-checkout"
     assert hook.exists() and os.access(hook, os.X_OK)
-    content = hook.read_text()
+    content = hook.read_text(encoding="utf-8")
     assert "__CANOPY_HOOK_MARKER__" in content
     assert '"repo-a"' in content
     assert json.dumps(str(root.resolve())) in content
@@ -94,28 +94,28 @@ def test_install_chains_existing_user_hook(workspace):
     hook_dir = api / ".git" / "hooks"
     hook_dir.mkdir(exist_ok=True)
     user_hook = hook_dir / "post-checkout"
-    user_hook.write_text("#!/bin/sh\necho user hook\n")
+    user_hook.write_text("#!/bin/sh\necho user hook\n", encoding="utf-8")
     user_hook.chmod(0o755)
 
     result = install_hook(api, "repo-a", root)
     assert result.action == "chained_existing"
     chained = hook_dir / "post-checkout.canopy-chained"
     assert chained.exists()
-    assert "user hook" in chained.read_text()
+    assert "user hook" in chained.read_text(encoding="utf-8")
 
 
 def test_uninstall_restores_chained_hook(workspace):
     root, api = workspace
     user_hook = api / ".git" / "hooks" / "post-checkout"
     user_hook.parent.mkdir(exist_ok=True)
-    user_hook.write_text("#!/bin/sh\necho user\n")
+    user_hook.write_text("#!/bin/sh\necho user\n", encoding="utf-8")
     user_hook.chmod(0o755)
 
     install_hook(api, "repo-a", root)
     result = uninstall_hook(api, "repo-a")
     assert result.action == "uninstalled_and_restored"
     assert user_hook.exists()
-    assert "user" in user_hook.read_text()
+    assert "user" in user_hook.read_text(encoding="utf-8")
 
 
 def test_uninstall_removes_canopy_hook(workspace):
@@ -130,7 +130,7 @@ def test_uninstall_skips_foreign_hook(workspace):
     root, api = workspace
     foreign = api / ".git" / "hooks" / "post-checkout"
     foreign.parent.mkdir(exist_ok=True)
-    foreign.write_text("#!/bin/sh\nexit 0\n")
+    foreign.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     foreign.chmod(0o755)
 
     result = uninstall_hook(api, "repo-a")
@@ -154,7 +154,7 @@ def test_hook_skips_file_checkout(workspace):
     root, api = workspace
     install_hook(api, "repo-a", root)
     # File checkout (is_branch_checkout=0); state file should NOT be created.
-    (api / "README").write_text("modified\n")
+    (api / "README").write_text("modified\n", encoding="utf-8")
     _git(["checkout", "--", "README"], cwd=api)
 
     state = read_heads_state(root)
@@ -184,7 +184,7 @@ def test_hook_writes_per_repo_entries(workspace):
     ui = root / "repo-b"
     ui.mkdir()
     _git(["init", "-b", "main"], cwd=ui)
-    (ui / "x").write_text("x\n")
+    (ui / "x").write_text("x\n", encoding="utf-8")
     _git(["add", "."], cwd=ui)
     _git(["commit", "-m", "init"], cwd=ui)
 

@@ -69,7 +69,7 @@ def have_gh_cli() -> bool:
     if shutil.which("gh") is None:
         return False
     result = subprocess.run(
-        ["gh", "auth", "status"], capture_output=True, text=True, check=False,
+        ["gh", "auth", "status"], capture_output=True, text=True, encoding="utf-8", check=False,
     )
     return result.returncode == 0
 
@@ -142,7 +142,7 @@ def _gh(args: list[str], timeout: float = 15.0) -> str:
     """Run gh and return stdout. Raises GitHubNotConfiguredError on failure."""
     try:
         proc = subprocess.run(
-            ["gh"] + args, capture_output=True, text=True,
+            ["gh"] + args, capture_output=True, text=True, encoding="utf-8",
             timeout=timeout, check=False,
         )
     except FileNotFoundError as e:
@@ -698,7 +698,7 @@ def _graphql_via_gh_cli(query: str, vars: dict) -> dict:
             args.extend(["-F", f"{k}={v}"])
         else:
             args.extend(["-f", f"{k}={v}"])
-    proc = subprocess.run(args, capture_output=True, text=True)
+    proc = subprocess.run(args, capture_output=True, text=True, encoding="utf-8")
     if proc.returncode != 0:
         raise GitHubNotConfiguredError(
             f"gh api graphql failed: {proc.stderr.strip()}"

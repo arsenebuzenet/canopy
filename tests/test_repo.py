@@ -16,7 +16,7 @@ from canopy.git.repo import (
 
 def _git(args, cwd):
     subprocess.run(
-        ["git"] + args, cwd=cwd, capture_output=True, text=True, check=True,
+        ["git"] + args, cwd=cwd, capture_output=True, text=True, encoding="utf-8", check=True,
         env={**os.environ, "GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "t@t.com",
              "GIT_COMMITTER_NAME": "Test", "GIT_COMMITTER_EMAIL": "t@t.com"},
     )
@@ -30,7 +30,7 @@ def git_repo(tmp_path):
     _git(["init", "-b", "main"], cwd=repo)
     _git(["config", "user.email", "t@t.com"], cwd=repo)
     _git(["config", "user.name", "Test"], cwd=repo)
-    (repo / "hello.py").write_text("print('hello')\n")
+    (repo / "hello.py").write_text("print('hello')\n", encoding="utf-8")
     _git(["add", "."], cwd=repo)
     _git(["commit", "-m", "init"], cwd=repo)
     return repo
@@ -55,14 +55,14 @@ def test_is_dirty_clean(git_repo):
 
 
 def test_is_dirty_modified(git_repo):
-    (git_repo / "hello.py").write_text("print('modified')\n")
+    (git_repo / "hello.py").write_text("print('modified')\n", encoding="utf-8")
     assert is_dirty(git_repo) is True
 
 
 def test_dirty_file_count(git_repo):
     assert dirty_file_count(git_repo) == 0
-    (git_repo / "hello.py").write_text("print('mod')\n")
-    (git_repo / "new.py").write_text("new\n")
+    (git_repo / "hello.py").write_text("print('mod')\n", encoding="utf-8")
+    (git_repo / "new.py").write_text("new\n", encoding="utf-8")
     assert dirty_file_count(git_repo) == 2
 
 
@@ -103,7 +103,7 @@ def test_create_branch_does_not_inherit_upstream(git_repo, tmp_path):
     # No upstream tracking should be configured on the new branch.
     result = subprocess.run(
         ["git", "config", "--get", "branch.no-inherit.remote"],
-        cwd=git_repo, capture_output=True, text=True,
+        cwd=git_repo, capture_output=True, text=True, encoding="utf-8",
     )
     assert result.returncode != 0, (
         f"new branch unexpectedly has upstream tracking: "
@@ -125,7 +125,7 @@ def test_divergence(git_repo):
     # Create feature branch with a commit
     create_branch(git_repo, "feature-z")
     checkout(git_repo, "feature-z")
-    (git_repo / "feature.py").write_text("feature\n")
+    (git_repo / "feature.py").write_text("feature\n", encoding="utf-8")
     _git(["add", "."], cwd=git_repo)
     _git(["commit", "-m", "feature commit"], cwd=git_repo)
 
@@ -137,8 +137,8 @@ def test_divergence(git_repo):
 def test_changed_files(git_repo):
     create_branch(git_repo, "changes")
     checkout(git_repo, "changes")
-    (git_repo / "new_file.py").write_text("new\n")
-    (git_repo / "hello.py").write_text("print('changed')\n")
+    (git_repo / "new_file.py").write_text("new\n", encoding="utf-8")
+    (git_repo / "hello.py").write_text("print('changed')\n", encoding="utf-8")
     _git(["add", "."], cwd=git_repo)
     _git(["commit", "-m", "changes"], cwd=git_repo)
 
@@ -148,7 +148,7 @@ def test_changed_files(git_repo):
 
 
 def test_stage_and_commit(git_repo):
-    (git_repo / "staged.py").write_text("staged\n")
+    (git_repo / "staged.py").write_text("staged\n", encoding="utf-8")
     stage_files(git_repo, ["staged.py"])
 
     status = status_porcelain(git_repo)
@@ -170,7 +170,7 @@ def test_status_porcelain_clean(git_repo):
 
 
 def test_status_porcelain_dirty(git_repo):
-    (git_repo / "hello.py").write_text("modified\n")
+    (git_repo / "hello.py").write_text("modified\n", encoding="utf-8")
     status = status_porcelain(git_repo)
     assert len(status) == 1
     assert status[0]["path"] == "hello.py"
@@ -179,8 +179,8 @@ def test_status_porcelain_dirty(git_repo):
 # ── stage_all_tracked / staged_file_count ────────────────────────────────
 
 def test_stage_all_tracked_picks_up_modifications(git_repo):
-    (git_repo / "hello.py").write_text("modified\n")
-    (git_repo / "untracked.py").write_text("untracked\n")  # should NOT be staged
+    (git_repo / "hello.py").write_text("modified\n", encoding="utf-8")
+    (git_repo / "untracked.py").write_text("untracked\n", encoding="utf-8")  # should NOT be staged
     stage_all_tracked(git_repo)
     assert staged_file_count(git_repo) == 1
 
@@ -193,7 +193,7 @@ def test_staged_file_count_zero_when_clean(git_repo):
 
 def test_commit_amend_replaces_head(git_repo):
     base = head_sha(git_repo)
-    (git_repo / "hello.py").write_text("changed\n")
+    (git_repo / "hello.py").write_text("changed\n", encoding="utf-8")
     stage_all_tracked(git_repo)
     result = commit(git_repo, "amended", amend=True)
     assert result["sha"] != base  # amend rewrites the sha
@@ -205,10 +205,10 @@ def test_commit_no_hooks_skips_pre_commit(git_repo):
     hooks_dir = git_repo / ".git" / "hooks"
     hooks_dir.mkdir(exist_ok=True)
     pc = hooks_dir / "pre-commit"
-    pc.write_text("#!/bin/sh\nexit 1\n")
+    pc.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
     pc.chmod(0o755)
 
-    (git_repo / "hello.py").write_text("changed\n")
+    (git_repo / "hello.py").write_text("changed\n", encoding="utf-8")
     stage_all_tracked(git_repo)
 
     with pytest.raises(GitError):
@@ -219,8 +219,8 @@ def test_commit_no_hooks_skips_pre_commit(git_repo):
 
 
 def test_commit_files_changed_for_multi_file_commit(git_repo):
-    (git_repo / "a.py").write_text("a\n")
-    (git_repo / "b.py").write_text("b\n")
+    (git_repo / "a.py").write_text("a\n", encoding="utf-8")
+    (git_repo / "b.py").write_text("b\n", encoding="utf-8")
     stage_files(git_repo, ["a.py", "b.py"])
     result = commit(git_repo, "two files")
     assert result["files_changed"] == 2
@@ -241,7 +241,7 @@ def git_repo_with_remote(tmp_path):
     _git(["config", "user.email", "t@t.com"], cwd=repo)
     _git(["config", "user.name", "Test"], cwd=repo)
     _git(["remote", "add", "origin", str(bare)], cwd=repo)
-    (repo / "hello.py").write_text("print('hello')\n")
+    (repo / "hello.py").write_text("print('hello')\n", encoding="utf-8")
     _git(["add", "."], cwd=repo)
     _git(["commit", "-m", "init"], cwd=repo)
     return repo
@@ -274,7 +274,7 @@ def test_push_when_up_to_date_still_returns_ok(git_repo_with_remote):
 
 def test_push_pushed_count_after_new_commit(git_repo_with_remote):
     push(git_repo_with_remote, branch="main", set_upstream=True)
-    (git_repo_with_remote / "more.py").write_text("more\n")
+    (git_repo_with_remote / "more.py").write_text("more\n", encoding="utf-8")
     stage_files(git_repo_with_remote, ["more.py"])
     commit(git_repo_with_remote, "second")
     assert unpushed_count(git_repo_with_remote) == 1
@@ -285,7 +285,7 @@ def test_push_pushed_count_after_new_commit(git_repo_with_remote):
 
 def test_push_dry_run_does_not_advance_upstream(git_repo_with_remote):
     push(git_repo_with_remote, branch="main", set_upstream=True)
-    (git_repo_with_remote / "more.py").write_text("more\n")
+    (git_repo_with_remote / "more.py").write_text("more\n", encoding="utf-8")
     stage_files(git_repo_with_remote, ["more.py"])
     commit(git_repo_with_remote, "second")
     result = push(git_repo_with_remote, dry_run=True)
@@ -305,13 +305,13 @@ def test_push_rejected_on_non_fast_forward(git_repo_with_remote, tmp_path):
     _git(["clone", str(bare), str(second)], cwd=tmp_path)
     _git(["config", "user.email", "u@u.com"], cwd=second)
     _git(["config", "user.name", "Other"], cwd=second)
-    (second / "diverged.py").write_text("diverged\n")
+    (second / "diverged.py").write_text("diverged\n", encoding="utf-8")
     _git(["add", "."], cwd=second)
     _git(["commit", "-m", "diverged"], cwd=second)
     _git(["push", "origin", "main"], cwd=second)
 
     # Local repo now has its own commit on main; push should be rejected.
-    (git_repo_with_remote / "local.py").write_text("local\n")
+    (git_repo_with_remote / "local.py").write_text("local\n", encoding="utf-8")
     stage_files(git_repo_with_remote, ["local.py"])
     commit(git_repo_with_remote, "local change")
     result = push(git_repo_with_remote)

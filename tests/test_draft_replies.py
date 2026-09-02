@@ -22,7 +22,7 @@ from canopy.git import repo as git
 def _git(args: list[str], cwd: Path) -> str:
     res = subprocess.run(
         ["git"] + args,
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True, text=True, encoding="utf-8", cwd=cwd,
         env={**os.environ,
              "GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "test@test.com",
              "GIT_COMMITTER_NAME": "Test", "GIT_COMMITTER_EMAIL": "test@test.com"},
@@ -122,18 +122,18 @@ def test_log_for_path_reports_commits_after_anchor(tmp_path):
     _git(["config", "user.email", "t@t"], repo)
     _git(["config", "user.name", "t"], repo)
 
-    (repo / "f.py").write_text("a\n")
+    (repo / "f.py").write_text("a\n", encoding="utf-8")
     _git(["add", "."], repo)
     _git(["commit", "-m", "initial"], repo)
     anchor = _git(["rev-parse", "HEAD"], repo)
 
     # Touch a different file — should NOT count.
-    (repo / "g.py").write_text("g\n")
+    (repo / "g.py").write_text("g\n", encoding="utf-8")
     _git(["add", "."], repo)
     _git(["commit", "-m", "untouched-by-comment"], repo)
 
     # Touch the commented file — SHOULD count.
-    (repo / "f.py").write_text("a\nb\n")
+    (repo / "f.py").write_text("a\nb\n", encoding="utf-8")
     _git(["add", "."], repo)
     _git(["commit", "-m", "rename foo to bar"], repo)
 
@@ -150,12 +150,12 @@ def test_log_for_path_returns_empty_when_file_untouched(tmp_path):
     _git(["config", "user.email", "t@t"], repo)
     _git(["config", "user.name", "t"], repo)
 
-    (repo / "f.py").write_text("a\n")
+    (repo / "f.py").write_text("a\n", encoding="utf-8")
     _git(["add", "."], repo)
     _git(["commit", "-m", "initial"], repo)
     anchor = _git(["rev-parse", "HEAD"], repo)
 
-    (repo / "g.py").write_text("g\n")
+    (repo / "g.py").write_text("g\n", encoding="utf-8")
     _git(["add", "."], repo)
     _git(["commit", "-m", "other file only"], repo)
 

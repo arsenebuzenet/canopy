@@ -25,7 +25,7 @@ def read(workspace: Workspace) -> dict[str, Any] | None:
     if not p.exists():
         return None
     try:
-        data = json.loads(p.read_text())
+        data = json.loads(p.read_text(encoding="utf-8"))
         if isinstance(data, dict) and "features" in data:
             return data
     except (ValueError, OSError):
@@ -42,5 +42,5 @@ def write(workspace: Workspace, features: dict[str, Any]) -> None:
         "features": features,
     }
     tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(json.dumps(payload, indent=2) + "\n")
+    tmp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     os.replace(tmp, p)

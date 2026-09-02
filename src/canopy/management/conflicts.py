@@ -125,7 +125,7 @@ def _enumerate_features(workspace: Workspace, *, include_cold: bool) -> list[str
     if features_path.exists():
         import json
         try:
-            data = json.loads(features_path.read_text("utf-8"))
+            data = json.loads(features_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             data = {}
     else:

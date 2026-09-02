@@ -25,7 +25,7 @@ def test_install_skill_first_time(fake_home):
     assert result.action == "installed"
     target = skill_install_target()
     assert target.exists()
-    assert "name: using-canopy" in target.read_text()
+    assert "name: using-canopy" in target.read_text(encoding="utf-8")
 
 
 def test_install_skill_idempotent(fake_home):
@@ -39,30 +39,30 @@ def test_install_skill_skips_foreign_file(fake_home):
     """If a different SKILL.md exists at the path, leave it alone unless --reinstall."""
     target = skill_install_target()
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("# someone else's skill\n")
+    target.write_text("# someone else's skill\n", encoding="utf-8")
     result = install_skill()
     assert result.action == "skipped"
     assert "foreign" in (result.reason or "")
-    assert target.read_text() == "# someone else's skill\n"
+    assert target.read_text(encoding="utf-8") == "# someone else's skill\n"
 
 
 def test_install_skill_reinstall_overwrites_foreign(fake_home):
     target = skill_install_target()
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("# someone else\n")
+    target.write_text("# someone else\n", encoding="utf-8")
     result = install_skill(reinstall=True)
     assert result.action == "reinstalled"
-    assert "name: using-canopy" in target.read_text()
+    assert "name: using-canopy" in target.read_text(encoding="utf-8")
 
 
 def test_install_skill_updates_outdated_canopy_skill(fake_home):
     """An older version of our own skill should be updated to current."""
     target = skill_install_target()
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("---\nname: using-canopy\n---\n# old version\n")
+    target.write_text("---\nname: using-canopy\n---\n# old version\n", encoding="utf-8")
     result = install_skill()
     assert result.action == "reinstalled"
-    assert "Tool selection" in target.read_text()  # body of current skill
+    assert "Tool selection" in target.read_text(encoding="utf-8")  # body of current skill
 
 
 # ── install_mcp ──────────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ def test_install_mcp_creates_new_file(tmp_path):
     workspace.mkdir()
     result = install_mcp(workspace)
     assert result.action in ("created", "added")
-    cfg = json.loads(mcp_config_path(workspace).read_text())
+    cfg = json.loads(mcp_config_path(workspace).read_text(encoding="utf-8"))
     assert cfg["mcpServers"]["canopy"]["command"] == "canopy-mcp"
     assert cfg["mcpServers"]["canopy"]["env"]["CANOPY_ROOT"] == str(workspace.resolve())
 
@@ -86,9 +86,9 @@ def test_install_mcp_merges_with_existing_servers(tmp_path):
         "mcpServers": {
             "linear": {"type": "http", "url": "https://mcp.linear.app/mcp", "oauth": True},
         }
-    }))
+    }), encoding="utf-8")
     install_mcp(workspace)
-    cfg = json.loads(existing.read_text())
+    cfg = json.loads(existing.read_text(encoding="utf-8"))
     assert "linear" in cfg["mcpServers"]
     assert "canopy" in cfg["mcpServers"]
 
@@ -110,18 +110,18 @@ def test_install_mcp_updates_with_reinstall(tmp_path):
             "canopy": {"command": "canopy-mcp", "args": [],
                         "env": {"CANOPY_ROOT": "/wrong/path"}}
         }
-    }))
+    }), encoding="utf-8")
     result = install_mcp(workspace)
     # Without --reinstall, only updates if the env doesn't match
     assert result.action == "updated"
-    cfg = json.loads(existing.read_text())
+    cfg = json.loads(existing.read_text(encoding="utf-8"))
     assert cfg["mcpServers"]["canopy"]["env"]["CANOPY_ROOT"] == str(workspace.resolve())
 
 
 def test_install_mcp_skips_invalid_json(tmp_path):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
-    mcp_config_path(workspace).write_text("not json {")
+    mcp_config_path(workspace).write_text("not json {", encoding="utf-8")
     result = install_mcp(workspace)
     assert result.action == "skipped"
     assert "valid JSON" in (result.reason or "")

@@ -19,7 +19,7 @@ from canopy.features.coordinator import FeatureCoordinator
 def _git(args, cwd):
     result = subprocess.run(
         ["git"] + args,
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True, text=True, encoding="utf-8", cwd=cwd,
         env={**os.environ, "GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "test@test.com",
              "GIT_COMMITTER_NAME": "Test", "GIT_COMMITTER_EMAIL": "test@test.com"},
     )
@@ -117,7 +117,7 @@ path = "./repo-a"
 name = "repo-b"
 path = "./repo-b"
 """
-        (workspace_with_feature / "canopy.toml").write_text(toml_content)
+        (workspace_with_feature / "canopy.toml").write_text(toml_content, encoding="utf-8")
         api_path = workspace_with_feature / "repo-a"
 
         ctx = detect_context(cwd=api_path)
@@ -167,8 +167,8 @@ class TestPreflightFromFeatureDir:
         feature_dir = _setup_feature_worktrees(canopy_toml)
 
         # Make changes in both worktree repos
-        (feature_dir / "repo-a" / "new_api.py").write_text("api change\n")
-        (feature_dir / "repo-b" / "new_ui.ts").write_text("ui change\n")
+        (feature_dir / "repo-a" / "new_api.py").write_text("api change\n", encoding="utf-8")
+        (feature_dir / "repo-b" / "new_ui.ts").write_text("ui change\n", encoding="utf-8")
 
         # Simulate what cmd_preflight does
         ctx = detect_context(cwd=feature_dir)
@@ -210,7 +210,7 @@ class TestPreflightFromFeatureDir:
         feature_dir = _setup_feature_worktrees(canopy_toml)
 
         # Change only api
-        (feature_dir / "repo-a" / "api_only.py").write_text("only api\n")
+        (feature_dir / "repo-a" / "api_only.py").write_text("only api\n", encoding="utf-8")
 
         ctx = detect_context(cwd=feature_dir / "repo-a")
         assert ctx.context_type == "repo_worktree"
@@ -248,7 +248,7 @@ class TestPreflightFromFeatureDir:
         feature_dir = _setup_feature_worktrees(canopy_toml)
 
         # Only change api
-        (feature_dir / "repo-a" / "partial.py").write_text("partial\n")
+        (feature_dir / "repo-a" / "partial.py").write_text("partial\n", encoding="utf-8")
 
         ctx = detect_context(cwd=feature_dir)
         results = {}
@@ -298,7 +298,7 @@ def workspace_with_slots(canopy_toml):
             "worktree-1": {"feature": "Y", "occupied_at": "2026-05-28T00:00:00Z"}
         },
         "last_touched": {"Y": "2026-05-28T00:00:00Z"},
-    }))
+    }), encoding="utf-8")
 
     from canopy.workspace.config import load_config
     from canopy.workspace.workspace import Workspace

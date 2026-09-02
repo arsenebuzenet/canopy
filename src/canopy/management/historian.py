@@ -100,7 +100,7 @@ def _ensure_memory_gitignore(memory_dir: Path) -> None:
     gi = memory_dir / ".gitignore"
     if gi.exists():
         return
-    gi.write_text("# Auto-written by canopy historian (M4).\n*\n!.gitignore\n")
+    gi.write_text("# Auto-written by canopy historian (M4).\n*\n!.gitignore\n", encoding="utf-8")
 
 
 def _atomic_write(path: Path, text: str) -> None:

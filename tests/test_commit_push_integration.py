@@ -20,7 +20,7 @@ from canopy.workspace.workspace import Workspace
 
 def _git(args, cwd):
     subprocess.run(
-        ["git"] + args, cwd=cwd, check=True, capture_output=True, text=True,
+        ["git"] + args, cwd=cwd, check=True, capture_output=True, text=True, encoding="utf-8",
         env={**os.environ, "GIT_AUTHOR_NAME": "T", "GIT_AUTHOR_EMAIL": "t@t.com",
              "GIT_COMMITTER_NAME": "T", "GIT_COMMITTER_EMAIL": "t@t.com"},
     )
@@ -40,7 +40,7 @@ def _make_workspace(workspace_dir) -> Workspace:
 def _features_file(workspace_dir, payload):
     canopy_dir = workspace_dir / ".canopy"
     canopy_dir.mkdir(exist_ok=True)
-    (canopy_dir / "features.json").write_text(json.dumps(payload))
+    (canopy_dir / "features.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 def test_commit_then_push_set_upstream_end_to_end(workspace_with_feature, tmp_path):
@@ -62,10 +62,10 @@ def test_commit_then_push_set_upstream_end_to_end(workspace_with_feature, tmp_pa
 
     # Modify a tracked file in each repo (simulating real WIP).
     (workspace_with_feature / "repo-a" / "src" / "models.py").write_text(
-        "class User:\n    name: str\n    new_field: int\n"
+        "class User:\n    name: str\n    new_field: int\n", encoding="utf-8"
     )
     (workspace_with_feature / "repo-b" / "src" / "types.ts").write_text(
-        "export interface User { name: string; new: number; }\n"
+        "export interface User { name: string; new: number; }\n", encoding="utf-8"
     )
 
     commit_result = commit(ws, "wave 2.3 integration", feature="auth-flow")
@@ -95,7 +95,7 @@ def test_commit_then_push_set_upstream_end_to_end(workspace_with_feature, tmp_pa
         local_sha = git.head_sha(workspace_with_feature / repo)
         remote_sha = subprocess.run(
             ["git", "rev-parse", "auth-flow"],
-            capture_output=True, text=True, cwd=bare_paths[repo],
+            capture_output=True, text=True, encoding="utf-8", cwd=bare_paths[repo],
         ).stdout.strip()
         assert remote_sha == local_sha, f"{repo}: remote != local"
 

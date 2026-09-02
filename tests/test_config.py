@@ -37,7 +37,7 @@ def test_load_config_missing_name(tmp_path):
 [[repos]]
 name = "repo-a"
 path = "./repo-a"
-""")
+""", encoding="utf-8")
     with pytest.raises(ConfigError, match="Missing.*name"):
         load_config(tmp_path)
 
@@ -46,7 +46,7 @@ def test_load_config_no_repos(tmp_path):
     (tmp_path / "canopy.toml").write_text("""
 [workspace]
 name = "test"
-""")
+""", encoding="utf-8")
     with pytest.raises(ConfigError, match="No.*repos"):
         load_config(tmp_path)
 
@@ -63,7 +63,7 @@ path = "./repo-a"
 [[repos]]
 name = "repo-a"
 path = "./api2"
-""")
+""", encoding="utf-8")
     with pytest.raises(ConfigError, match="Duplicate"):
         load_config(tmp_path)
 
@@ -106,7 +106,7 @@ name = "test"
 name = "legacy"
 path = "./legacy"
 default_branch = "master"
-""")
+""", encoding="utf-8")
     config = load_config(tmp_path)
     assert config.repos[0].default_branch == "master"
 
@@ -127,7 +127,7 @@ review_bots = ["coderabbit", "korbit"]
 [[repos]]
 name = "api"
 path = "./api"
-""")
+""", encoding="utf-8")
     config = load_config(tmp_path)
     assert config.augments == {
         "preflight_cmd": "make check",
@@ -144,7 +144,7 @@ name = "test"
 [[repos]]
 name = "api"
 path = "./api"
-""")
+""", encoding="utf-8")
     config = load_config(tmp_path)
     assert config.augments == {}
     assert config.repos[0].augments == {}
@@ -166,7 +166,7 @@ augments = { preflight_cmd = "uv run pytest tests/fast" }
 [[repos]]
 name = "ui"
 path = "./ui"
-""")
+""", encoding="utf-8")
     config = load_config(tmp_path)
     api = next(r for r in config.repos if r.name == "api")
     ui = next(r for r in config.repos if r.name == "ui")
@@ -186,7 +186,7 @@ name = "test"
 [[repos]]
 name = "api"
 path = "./api"
-""")
+""", encoding="utf-8")
     with pytest.raises(ConfigError, match="augments.*must be a table"):
         load_config(tmp_path)
 
@@ -200,7 +200,7 @@ name = "test"
 name = "api"
 path = "./api"
 augments = "not a table"
-""")
+""", encoding="utf-8")
     with pytest.raises(ConfigError, match="augments must be a table"):
         load_config(tmp_path)
 
@@ -218,7 +218,7 @@ another = 42
 [[repos]]
 name = "api"
 path = "./api"
-""")
+""", encoding="utf-8")
     config = load_config(tmp_path)
     assert config.augments["future_key"] == "value"
     assert config.augments["another"] == 42
@@ -237,7 +237,7 @@ slots = 3
 [[repos]]
 name = "a"
 path = "a"
-""")
+""", encoding="utf-8")
     (tmp_path / "a").mkdir()
     cfg = load_config(tmp_path)
     assert cfg.slots == 3
@@ -252,7 +252,7 @@ name = "ws"
 [[repos]]
 name = "a"
 path = "a"
-""")
+""", encoding="utf-8")
     (tmp_path / "a").mkdir()
     cfg = load_config(tmp_path)
     assert cfg.slots == 2
@@ -268,7 +268,7 @@ max_worktrees = 3
 [[repos]]
 name = "a"
 path = "a"
-""")
+""", encoding="utf-8")
     (tmp_path / "a").mkdir()
     with pytest.raises(ConfigError, match=r"max_worktrees was renamed to `slots`"):
         load_config(tmp_path)

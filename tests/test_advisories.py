@@ -14,9 +14,9 @@ def _ws(root):
 def _register(root, feature, repos):
     fp = root / ".canopy" / "features.json"
     fp.parent.mkdir(exist_ok=True)
-    data = json.loads(fp.read_text()) if fp.exists() else {}
+    data = json.loads(fp.read_text(encoding="utf-8")) if fp.exists() else {}
     data[feature] = {"repos": repos, "status": "active"}
-    fp.write_text(json.dumps(data))
+    fp.write_text(json.dumps(data), encoding="utf-8")
 
 
 def test_advises_unregistered_repo_on_feature_branch(canopy_toml_for_workspace):
@@ -53,6 +53,6 @@ def test_reclaimable_dirty_folds_into_advisories(workspace_with_slots):
     ws = workspace_with_slots
     prs_cache.write(ws, {"Y": {"repos": {"repo-a": {"number": 1, "state": "merged"}}}})
     wt = sm.slot_worktree_path(ws, "worktree-1", "repo-a")
-    (wt / "wip.txt").write_text("dirty\n")
+    (wt / "wip.txt").write_text("dirty\n", encoding="utf-8")
     adv = compute_advisories(ws, "X")     # active feature X; Y warm+merged+dirty
     assert any(a["code"] == "reclaimable_but_dirty" for a in adv)

@@ -22,13 +22,13 @@ def test_copy_env_files_copies_existing_files(tmp_path):
     src = tmp_path / "src"
     dst = tmp_path / "dst"
     src.mkdir(); dst.mkdir()
-    (src / ".env").write_text("FOO=bar\n")
-    (src / ".env.local").write_text("DB=local\n")
+    (src / ".env").write_text("FOO=bar\n", encoding="utf-8")
+    (src / ".env.local").write_text("DB=local\n", encoding="utf-8")
 
     result = _copy_env_files([".env", ".env.local"], src, dst, force=False)
     assert result["status"] == "ok"
     assert sorted(result["files_copied"]) == [".env", ".env.local"]
-    assert (dst / ".env").read_text() == "FOO=bar\n"
+    assert (dst / ".env").read_text(encoding="utf-8") == "FOO=bar\n"
 
 
 def test_copy_env_files_handles_missing_source(tmp_path):
@@ -45,34 +45,34 @@ def test_copy_env_files_handles_missing_source(tmp_path):
 def test_copy_env_files_skips_existing_destination(tmp_path):
     src = tmp_path / "src"; src.mkdir()
     dst = tmp_path / "dst"; dst.mkdir()
-    (src / ".env").write_text("FROM_SRC\n")
-    (dst / ".env").write_text("ALREADY_HERE\n")
+    (src / ".env").write_text("FROM_SRC\n", encoding="utf-8")
+    (dst / ".env").write_text("ALREADY_HERE\n", encoding="utf-8")
 
     result = _copy_env_files([".env"], src, dst, force=False)
     assert result["files_skipped"] == [".env"]
-    assert (dst / ".env").read_text() == "ALREADY_HERE\n"
+    assert (dst / ".env").read_text(encoding="utf-8") == "ALREADY_HERE\n"
 
 
 def test_copy_env_files_force_overwrites(tmp_path):
     src = tmp_path / "src"; src.mkdir()
     dst = tmp_path / "dst"; dst.mkdir()
-    (src / ".env").write_text("FROM_SRC\n")
-    (dst / ".env").write_text("OLD\n")
+    (src / ".env").write_text("FROM_SRC\n", encoding="utf-8")
+    (dst / ".env").write_text("OLD\n", encoding="utf-8")
 
     result = _copy_env_files([".env"], src, dst, force=True)
     assert result["files_copied"] == [".env"]
-    assert (dst / ".env").read_text() == "FROM_SRC\n"
+    assert (dst / ".env").read_text(encoding="utf-8") == "FROM_SRC\n"
 
 
 def test_copy_env_files_nested_paths(tmp_path):
     src = tmp_path / "src"; src.mkdir()
     dst = tmp_path / "dst"; dst.mkdir()
     (src / "apps" / "web").mkdir(parents=True)
-    (src / "apps" / "web" / ".env.local").write_text("WEB\n")
+    (src / "apps" / "web" / ".env.local").write_text("WEB\n", encoding="utf-8")
 
     result = _copy_env_files(["apps/web/.env.local"], src, dst, force=False)
     assert result["status"] == "ok"
-    assert (dst / "apps" / "web" / ".env.local").read_text() == "WEB\n"
+    assert (dst / "apps" / "web" / ".env.local").read_text(encoding="utf-8") == "WEB\n"
 
 
 # ── dep install ────────────────────────────────────────────────────────
@@ -129,7 +129,7 @@ path = "./repo-b"
 env_files = []
 install_cmd = ""
 """
-    (workspace_dir / "canopy.toml").write_text(toml)
+    (workspace_dir / "canopy.toml").write_text(toml, encoding="utf-8")
     return Workspace(load_config(workspace_dir))
 
 
@@ -151,8 +151,8 @@ def test_render_code_workspace_includes_per_repo_settings(workspace_with_bootstr
 def test_bootstrap_repo_runs_env_and_deps(tmp_path, workspace_with_bootstrap_config):
     workspace = workspace_with_bootstrap_config
     api_path = workspace.config.root / "repo-a"
-    (api_path / ".env").write_text("FOO\n")
-    (api_path / ".env.local").write_text("LOCAL\n")
+    (api_path / ".env").write_text("FOO\n", encoding="utf-8")
+    (api_path / ".env.local").write_text("LOCAL\n", encoding="utf-8")
 
     worktree = tmp_path / "wt-a"
     worktree.mkdir()
@@ -171,8 +171,8 @@ def test_bootstrap_repo_runs_env_and_deps(tmp_path, workspace_with_bootstrap_con
 def test_bootstrap_feature_writes_ide_workspace(tmp_path, workspace_with_bootstrap_config):
     workspace = workspace_with_bootstrap_config
     api_path = workspace.config.root / "repo-a"
-    (api_path / ".env").write_text("X\n")
-    (api_path / ".env.local").write_text("Y\n")
+    (api_path / ".env").write_text("X\n", encoding="utf-8")
+    (api_path / ".env.local").write_text("Y\n", encoding="utf-8")
 
     wt_a = tmp_path / "wt-a"; wt_a.mkdir()
     wt_b = tmp_path / "wt-b"; wt_b.mkdir()
@@ -185,7 +185,7 @@ def test_bootstrap_feature_writes_ide_workspace(tmp_path, workspace_with_bootstr
             "status": "active",
             "worktree_paths": {"repo-a": str(wt_a), "repo-b": str(wt_b)},
         }
-    }))
+    }), encoding="utf-8")
 
     result = bootstrap_feature(workspace, "auth-flow")
     assert result["feature"] == "auth-flow"
@@ -194,7 +194,7 @@ def test_bootstrap_feature_writes_ide_workspace(tmp_path, workspace_with_bootstr
     assert result["ide"]["status"] == "ok"
     ide_path = Path(result["ide"]["path"])
     assert ide_path.exists()
-    body = json.loads(ide_path.read_text())
+    body = json.loads(ide_path.read_text(encoding="utf-8"))
     repo_names = sorted(folder["name"] for folder in body["folders"])
     assert repo_names == ["repo-a (auth-flow)", "repo-b (auth-flow)"]
 
@@ -204,7 +204,7 @@ def test_bootstrap_feature_blocks_when_no_worktrees(workspace_with_bootstrap_con
     state_dir.mkdir(exist_ok=True)
     (state_dir / "features.json").write_text(json.dumps({
         "auth-flow": {"repos": ["repo-a"], "status": "active"},
-    }))
+    }), encoding="utf-8")
     with pytest.raises(BlockerError) as e:
         bootstrap_feature(workspace_with_bootstrap_config, "auth-flow")
     assert e.value.code == "no_worktrees"
@@ -287,7 +287,7 @@ def test_deps_skipped_when_lockfile_unchanged(canopy_toml_for_workspace, monkeyp
     monkeypatch.setattr(bootstrap, "_run_install",
                         lambda *a, **k: ran.append(1) or {"status": "ok", "exit_code": 0})
     wt = root / "repo-a"
-    (wt / "pnpm-lock.yaml").write_text("lock-v1\n")
+    (wt / "pnpm-lock.yaml").write_text("lock-v1\n", encoding="utf-8")
     bootstrap.bootstrap_repo(_ws(root), "auth-flow", "repo-a", wt, steps=("deps",))
     bootstrap.bootstrap_repo(_ws(root), "auth-flow", "repo-a", wt, steps=("deps",))
     assert len(ran) == 1                     # second call short-circuits
@@ -304,7 +304,7 @@ def test_deps_marker_does_not_dirty_worktree(canopy_toml_for_workspace, monkeypa
     wt = root / "repo-a"
     # Commit a lockfile so the ONLY thing that could dirty the tree is a
     # stray marker written by the deps step.
-    (wt / "pnpm-lock.yaml").write_text("lock-v1\n")
+    (wt / "pnpm-lock.yaml").write_text("lock-v1\n", encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=wt, check=True)
     subprocess.run(["git", "commit", "-m", "add lockfile"], cwd=wt, check=True)
     assert git.is_dirty(wt) is False          # clean baseline

@@ -88,10 +88,10 @@ def install_skill(name: str = DEFAULT_SKILL, *, reinstall: bool = False) -> Skil
             f"No bundled skill named '{name}'. Available: {', '.join(available_skills()) or '(none)'}",
         )
     target = skill_install_target(name)
-    source_text = source.read_text()
+    source_text = source.read_text(encoding="utf-8")
 
     if target.exists():
-        existing = target.read_text()
+        existing = target.read_text(encoding="utf-8")
         if existing == source_text:
             return SkillResult(
                 action="skipped", path=str(target), name=name,
@@ -103,11 +103,11 @@ def install_skill(name: str = DEFAULT_SKILL, *, reinstall: bool = False) -> Skil
                 reason="foreign skill present; use --reinstall to overwrite",
             )
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(source_text)
+        target.write_text(source_text, encoding="utf-8")
         return SkillResult(action="reinstalled", path=str(target), name=name)
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(source_text)
+    target.write_text(source_text, encoding="utf-8")
     return SkillResult(action="installed", path=str(target), name=name)
 
 
@@ -130,7 +130,7 @@ def install_mcp(workspace_root: Path, *, reinstall: bool = False) -> McpResult:
     created = False
     if target.exists():
         try:
-            config = json.loads(target.read_text())
+            config = json.loads(target.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             return McpResult(action="skipped", path=str(target),
                               reason="existing .mcp.json is not valid JSON; refusing to overwrite")
@@ -155,7 +155,7 @@ def install_mcp(workspace_root: Path, *, reinstall: bool = False) -> McpResult:
                               reason="canopy entry already present and current")
 
     servers["canopy"] = desired
-    target.write_text(json.dumps(config, indent=2) + "\n")
+    target.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
     return McpResult(
         action=("created" if created else ("added" if "canopy" not in (servers or {}) else "updated")),
         path=str(target),
@@ -190,7 +190,7 @@ def hooks_configured(settings_path: Path) -> bool:
     if not settings_path.exists():
         return False
     try:
-        settings = json.loads(settings_path.read_text())
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
     except (ValueError, OSError):
         return False
     if not isinstance(settings, dict):
@@ -219,7 +219,7 @@ def install_hooks(workspace_root: Path) -> dict:
     settings: dict = {}
     if path.exists():
         try:
-            settings = json.loads(path.read_text())
+            settings = json.loads(path.read_text(encoding="utf-8"))
         except (ValueError, OSError):
             return {"action": "skipped", "path": str(path),
                     "reason": "existing settings.json is not valid JSON — fix it first"}
@@ -255,7 +255,7 @@ def install_hooks(workspace_root: Path) -> dict:
     path.parent.mkdir(parents=True, exist_ok=True)
     # Atomic write: never leave a half-written settings.json behind.
     tmp = path.with_name(path.name + ".canopy-tmp")
-    tmp.write_text(json.dumps(settings, indent=2) + "\n")
+    tmp.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
     os.replace(tmp, path)
     return {"action": "added", "path": str(path)}
 
@@ -279,7 +279,7 @@ def check_status(workspace_root: Path) -> dict:
     mcp_state = {"path": str(mcp_target), "configured": False}
     if mcp_target.exists():
         try:
-            cfg = json.loads(mcp_target.read_text())
+            cfg = json.loads(mcp_target.read_text(encoding="utf-8"))
             servers = (cfg.get("mcpServers") if isinstance(cfg, dict) else {}) or {}
             entry = servers.get("canopy") if isinstance(servers, dict) else None
             mcp_state["configured"] = bool(
@@ -311,9 +311,9 @@ def check_skill_status(name: str) -> dict:
         "up_to_date": False,
     }
     if target.exists() and source.exists():
-        existing = target.read_text()
+        existing = target.read_text(encoding="utf-8")
         state["is_canopy_skill"] = f"name: {name}" in existing
-        state["up_to_date"] = existing == source.read_text()
+        state["up_to_date"] = existing == source.read_text(encoding="utf-8")
     return state
 
 

@@ -22,7 +22,7 @@ from canopy.management.review_filter import classify_threads
 
 def _git(args, cwd):
     subprocess.run(
-        ["git"] + args, cwd=cwd, check=True, capture_output=True, text=True,
+        ["git"] + args, cwd=cwd, check=True, capture_output=True, text=True, encoding="utf-8",
         env={**os.environ, "GIT_AUTHOR_NAME": "T", "GIT_AUTHOR_EMAIL": "t@t.com",
              "GIT_COMMITTER_NAME": "T", "GIT_COMMITTER_EMAIL": "t@t.com"},
     )
@@ -31,7 +31,7 @@ def _git(args, cwd):
 def _git_at(args, cwd, when_iso):
     """Run a git command with a fixed committer/author date."""
     subprocess.run(
-        ["git"] + args, cwd=cwd, check=True, capture_output=True, text=True,
+        ["git"] + args, cwd=cwd, check=True, capture_output=True, text=True, encoding="utf-8",
         env={**os.environ,
              "GIT_AUTHOR_NAME": "T", "GIT_AUTHOR_EMAIL": "t@t.com",
              "GIT_COMMITTER_NAME": "T", "GIT_COMMITTER_EMAIL": "t@t.com",
@@ -45,11 +45,11 @@ def _commit_at(repo: Path, files: dict[str, str], message: str, when_iso: str) -
     for name, content in files.items():
         path = repo / name
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content)
+        path.write_text(content, encoding="utf-8")
     _git(["add", "."], cwd=repo)
     _git_at(["commit", "-m", message], cwd=repo, when_iso=when_iso)
     return subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], cwd=repo, text=True,
+        ["git", "rev-parse", "HEAD"], cwd=repo, text=True, encoding="utf-8",
     ).strip()
 
 

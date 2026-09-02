@@ -8,7 +8,7 @@ def test_install_into_empty_workspace(tmp_path):
     from canopy.agent_setup import install_hooks
     result = install_hooks(tmp_path)
     assert result["action"] == "added"
-    settings = json.loads((tmp_path / ".claude" / "settings.json").read_text())
+    settings = json.loads((tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))
     pre = settings["hooks"]["PreToolUse"]
     assert pre[0]["matcher"] == "Bash"
     assert pre[0]["hooks"][0]["command"] == "canopy-hook-gate"
@@ -26,9 +26,9 @@ def test_install_preserves_existing_settings(tmp_path):
             {"matcher": "Bash",
              "hooks": [{"type": "command", "command": "my-other-hook"}]},
         ]},
-    }))
+    }), encoding="utf-8")
     install_hooks(tmp_path)
-    settings = json.loads((claude_dir / "settings.json").read_text())
+    settings = json.loads((claude_dir / "settings.json").read_text(encoding="utf-8"))
     assert settings["permissions"] == {"allow": ["Bash(ls:*)"]}
     commands = [h["hooks"][0]["command"] for h in settings["hooks"]["PreToolUse"]]
     assert "my-other-hook" in commands and "canopy-hook-gate" in commands
@@ -39,7 +39,7 @@ def test_install_is_idempotent(tmp_path):
     install_hooks(tmp_path)
     result = install_hooks(tmp_path)
     assert result["action"] == "unchanged"
-    settings = json.loads((tmp_path / ".claude" / "settings.json").read_text())
+    settings = json.loads((tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))
     gate_entries = [h for h in settings["hooks"]["PreToolUse"]
                     if h["hooks"][0]["command"] == "canopy-hook-gate"]
     assert len(gate_entries) == 1
@@ -49,17 +49,17 @@ def test_install_refuses_invalid_json(tmp_path):
     from canopy.agent_setup import install_hooks
     claude_dir = tmp_path / ".claude"
     claude_dir.mkdir()
-    (claude_dir / "settings.json").write_text("{not json")
+    (claude_dir / "settings.json").write_text("{not json", encoding="utf-8")
     result = install_hooks(tmp_path)
     assert result["action"] == "skipped"
-    assert (claude_dir / "settings.json").read_text() == "{not json"  # untouched
+    assert (claude_dir / "settings.json").read_text(encoding="utf-8") == "{not json"  # untouched
 
 
 def _write_settings(tmp_path, text):
     claude_dir = tmp_path / ".claude"
     claude_dir.mkdir()
     path = claude_dir / "settings.json"
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
     return path
 
 
@@ -69,7 +69,7 @@ def _assert_skipped_untouched(tmp_path, text):
     result = install_hooks(tmp_path)
     assert result["action"] == "skipped"
     assert "unexpected shape" in result["reason"]
-    assert path.read_text() == text  # byte-untouched
+    assert path.read_text(encoding="utf-8") == text  # byte-untouched
 
 
 def test_install_skips_hooks_list_shape(tmp_path):

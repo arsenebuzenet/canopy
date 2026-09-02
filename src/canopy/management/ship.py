@@ -371,7 +371,7 @@ def _read_feature_entry(workspace: Workspace, feature_name: str) -> dict | None:
     if not path.exists():
         return None
     try:
-        data = json.loads(path.read_text("utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     return data.get(feature_name)

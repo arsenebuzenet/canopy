@@ -25,13 +25,13 @@ def _make_workspace(workspace_dir, *, augments=None):
 def _features_file(workspace_dir, payload):
     canopy_dir = workspace_dir / ".canopy"
     canopy_dir.mkdir(exist_ok=True)
-    (canopy_dir / "features.json").write_text(json.dumps(payload))
+    (canopy_dir / "features.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 def _set_remote(repo_path, url):
     subprocess.run(
         ["git", "remote", "add", "origin", url],
-        cwd=repo_path, check=True, capture_output=True, text=True,
+        cwd=repo_path, check=True, capture_output=True, text=True, encoding="utf-8",
     )
 
 

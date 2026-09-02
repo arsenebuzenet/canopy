@@ -44,7 +44,7 @@ def detect_precommit(repo_path: Path) -> str:
         # automatically when we run `git hook run`
         result = subprocess.run(
             ["git", "rev-parse", "--git-common-dir"],
-            capture_output=True, text=True, cwd=repo_path,
+            capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
         )
         if result.returncode == 0:
             common_dir = (repo_path / result.stdout.strip()).resolve()
@@ -107,7 +107,7 @@ def _run_custom_preflight(repo_path: Path, command: str) -> dict:
     result = subprocess.run(
         ["sh", "-c", command],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         cwd=repo_path,
         timeout=120,
     )
@@ -128,7 +128,7 @@ def _run_framework(repo_path: Path) -> dict:
     result = subprocess.run(
         ["pre-commit", "run", "--all-files"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         cwd=repo_path,
         timeout=120,
     )
@@ -150,7 +150,7 @@ def _run_git_hook(repo_path: Path) -> dict:
     result = subprocess.run(
         ["git", "hook", "run", "pre-commit"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         cwd=repo_path,
         timeout=120,
     )
@@ -171,7 +171,7 @@ def _run_git_hook(repo_path: Path) -> dict:
             result = subprocess.run(
                 [str(hook_path)],
                 capture_output=True,
-                text=True,
+                text=True, encoding="utf-8",
                 cwd=repo_path,
                 timeout=120,
             )
@@ -202,7 +202,7 @@ def _resolve_hook_path(repo_path: Path) -> Path | None:
     # Worktree
     result = subprocess.run(
         ["git", "rev-parse", "--git-common-dir"],
-        capture_output=True, text=True, cwd=repo_path,
+        capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
     )
     if result.returncode == 0:
         common_dir = (repo_path / result.stdout.strip()).resolve()

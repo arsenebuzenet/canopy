@@ -58,7 +58,7 @@ def test_run_precommit_runs_in_repo_cwd(tmp_path: Path):
     cmd = f"pwd > {marker}"
     run_precommit(tmp_path, augments={"preflight_cmd": cmd})
     assert marker.exists()
-    assert marker.read_text().strip() == str(tmp_path)
+    assert marker.read_text(encoding="utf-8").strip() == str(tmp_path)
 
 
 # ── augments: missing / falsy preflight_cmd falls back to auto-detect ────

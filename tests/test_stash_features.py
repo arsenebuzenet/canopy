@@ -28,16 +28,16 @@ def _make_workspace(workspace_dir, repos=("repo-a", "repo-b")) -> Workspace:
 def _features_file(workspace_dir, payload):
     canopy_dir = workspace_dir / ".canopy"
     canopy_dir.mkdir(exist_ok=True)
-    (canopy_dir / "features.json").write_text(json.dumps(payload))
+    (canopy_dir / "features.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 def _make_dirty(repo_path, filename="dirty.txt", content="dirty"):
-    (repo_path / filename).write_text(content)
+    (repo_path / filename).write_text(content, encoding="utf-8")
 
 
 def _git(args, cwd):
     subprocess.run(
-        ["git"] + args, cwd=cwd, check=True, capture_output=True, text=True,
+        ["git"] + args, cwd=cwd, check=True, capture_output=True, text=True, encoding="utf-8",
         env={**os.environ, "GIT_AUTHOR_NAME": "T", "GIT_AUTHOR_EMAIL": "t@t.com",
              "GIT_COMMITTER_NAME": "T", "GIT_COMMITTER_EMAIL": "t@t.com"},
     )
@@ -143,7 +143,7 @@ def test_list_grouped_separates_tagged_and_untagged(workspace_with_feature):
 
     # Untagged stash via vanilla git: modify a tracked file so vanilla
     # `git stash push` (no -u) actually stashes something.
-    (api_path / "src" / "app.py").write_text("modified for untagged stash\n")
+    (api_path / "src" / "app.py").write_text("modified for untagged stash\n", encoding="utf-8")
     _git(["stash", "push", "-m", "untagged WIP"], cwd=api_path)
 
     # Tagged stash via canopy

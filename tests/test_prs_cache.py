@@ -30,5 +30,5 @@ def test_read_corrupt_returns_none(canopy_toml):
     from canopy.actions import prs_cache
     ws = Workspace(load_config(canopy_toml))
     (ws.config.root / ".canopy" / "state").mkdir(parents=True, exist_ok=True)
-    (ws.config.root / ".canopy" / "state" / "prs.json").write_text("{bad")
+    (ws.config.root / ".canopy" / "state" / "prs.json").write_text("{bad", encoding="utf-8")
     assert prs_cache.read(ws) is None

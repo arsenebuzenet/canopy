@@ -48,7 +48,7 @@ def run_in_repo(
             cwd=cwd,
             shell=True,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=timeout_seconds,
         )
     except subprocess.TimeoutExpired as e:

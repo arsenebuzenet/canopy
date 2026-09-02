@@ -39,7 +39,7 @@ def load(workspace_root: Path) -> dict:
     if not path.exists():
         return {}
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         if isinstance(data, dict):
             return data
     except (OSError, json.JSONDecodeError):
@@ -73,7 +73,7 @@ def record(
 
     fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".json.tmp")
     try:
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(log, fh, indent=2)
         os.replace(tmp_path, path)
     except Exception:

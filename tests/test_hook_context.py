@@ -17,7 +17,7 @@ def test_brief_lists_repos_and_branches(workspace_with_canonical_only):
 def test_brief_shows_dirty_counts(workspace_with_canonical_only):
     from canopy.actions.hook_context import context_brief
     ws = workspace_with_canonical_only
-    (ws.config.root / "repo-a" / "scratch.txt").write_text("dirty\n")
+    (ws.config.root / "repo-a" / "scratch.txt").write_text("dirty\n", encoding="utf-8")
     # Workspace caches repo state at construction — rebuild for live state
     from canopy.workspace.workspace import Workspace
     from canopy.workspace.config import load_config
@@ -53,9 +53,9 @@ def test_brief_shows_join_advisory(canopy_toml_for_workspace):
     root = canopy_toml_for_workspace
     fp = root / ".canopy" / "features.json"
     fp.parent.mkdir(exist_ok=True)
-    fp.write_text(json.dumps({"auth-flow": {"repos": ["repo-a"], "status": "active"}}))
+    fp.write_text(json.dumps({"auth-flow": {"repos": ["repo-a"], "status": "active"}}), encoding="utf-8")
     (root / ".canopy" / "state").mkdir(parents=True, exist_ok=True)
-    (root / ".canopy" / "state" / "active.json").write_text(json.dumps({"active_feature": "auth-flow"}))
+    (root / ".canopy" / "state" / "active.json").write_text(json.dumps({"active_feature": "auth-flow"}), encoding="utf-8")
     subprocess.run(["git", "checkout", "auth-flow"], cwd=root / "repo-b",
                    check=True, capture_output=True)
     brief = context_brief(Workspace(load_config(root)))
