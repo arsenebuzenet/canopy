@@ -174,6 +174,8 @@ _UNRESOLVABLE = ("$", "~", "`")   # vars/home/expansion → don't guess
 
 _MSYS_DRIVE = _re.compile(r"(?<![\w/])/([a-zA-Z])/")
 
+_ESCAPED_SPACE = "\x00"           # sentinel; never valid in a command line
+
 
 def normalize_command_paths(command: str) -> str:
     """On Windows, make the command parseable by ``shlex(posix=True)``.
@@ -185,7 +187,12 @@ def normalize_command_paths(command: str) -> str:
     """
     if not compat.IS_WINDOWS:
         return command
-    out = command.replace("\\", "/")
+    # `\ ` is Git Bash's escaped space — the one backslash on a Windows command
+    # line that really is an escape. Park it while the sweep rewrites the rest,
+    # then hand it back to shlex intact; otherwise `cd /c/my\ dir/repo` resolves
+    # to `C:\my` with dir_known=True, i.e. a confidently wrong directory.
+    out = command.replace("\\ ", _ESCAPED_SPACE).replace("\\", "/")
+    out = out.replace(_ESCAPED_SPACE, "\\ ")
     return _MSYS_DRIVE.sub(lambda m: f"{m.group(1).upper()}:/", out)
 
 

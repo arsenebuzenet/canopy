@@ -499,6 +499,23 @@ def test_backslash_paths_survive_parsing(tmp_path):
     assert segs[0].effective_dir.resolve() == (tmp_path / "ui").resolve()
 
 
+def test_msys_escaped_space_survives_normalisation(tmp_path):
+    """Git Bash escapes a space as `\\ `; that backslash must not be swept into
+    a separator, or the gate confidently resolves the wrong directory."""
+    from canopy.actions.hook_gate import resolve_segments
+    from canopy.compat import IS_WINDOWS
+    if not IS_WINDOWS:
+        pytest.skip("Windows path normalisation only")
+    repo = tmp_path / "my dir" / "repo"
+    repo.mkdir(parents=True)
+    drive, rest = str(repo).split(":", 1)
+    msys = f"/{drive.lower()}{rest.replace(chr(92), '/').replace(' ', chr(92) + ' ')}"
+    segs = resolve_segments(f"cd {msys} && git commit -m x", cwd=tmp_path)
+    assert len(segs) == 1
+    assert segs[0].dir_known is True
+    assert segs[0].effective_dir.resolve() == repo.resolve()
+
+
 def test_msys_drive_prefix_is_rewritten():
     """Git Bash spells C:\\x as /c/x; the gate maps it back on Windows."""
     from canopy.actions.hook_gate import normalize_command_paths
