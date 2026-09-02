@@ -143,7 +143,7 @@ code. Keys recognized today:
 
 | Key | Type | Consumer | Surface | Notes |
 |---|---|---|---|---|
-| `preflight_cmd` | string | `canopy preflight` / `preflight` MCP tool | agent | Runs via `sh -c`, so pipes and `&&` chains work. Falls back to auto-detected pre-commit framework when absent. |
+| `preflight_cmd` | string | `canopy preflight` / `preflight` MCP tool | agent | Runs through the platform shell (`sh -c` on POSIX, Git Bash on Windows), so pipes and `&&` chains work. Falls back to auto-detected pre-commit framework when absent. |
 | `test_cmd` | string | future `canopy test` | — | Schema-reserved. Safe to set now; consumed when the command lands. |
 | `review_bots` | list[string] | bot-comment tracking (`bot-status`, `feature_state`, `resume`) | management | Case-insensitive author substrings. Workspace-level only — the same bot account comments across all repos. |
 

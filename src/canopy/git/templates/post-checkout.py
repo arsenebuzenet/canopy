@@ -8,6 +8,7 @@ Chains to a pre-existing post-checkout.canopy-chained if present.
 import errno
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -102,8 +103,14 @@ def _chain_existing() -> None:
         if parts:
             is_env = os.path.basename(parts[0]) == "env"
             interpreter = parts[-1] if is_env else os.path.basename(parts[0])
+    if (interpreter and interpreter.startswith("python")
+            and shutil.which(interpreter) is None):
+        interpreter = sys.executable    # `python3` is rarely on a Windows PATH
     cmd = [interpreter, str(chained)] if interpreter else [str(chained)]
-    result = subprocess.run(cmd + sys.argv[1:], check=False)
+    try:
+        result = subprocess.run(cmd + sys.argv[1:], check=False)
+    except Exception:
+        return                          # never block git on a broken chain
     sys.exit(result.returncode)
 
 
