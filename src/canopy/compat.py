@@ -120,7 +120,8 @@ def run_shell(cmd: str, *, cwd: Path | str | None = None, **kw: Any) -> subproce
         if bash is None:
             # Falling back to cmd.exe here would mangle the command line into
             # something that fails obscurely later; say so up front instead.
-            from .actions.errors import BlockerError, FixAction  # circular at import time
+            # Deferred: canopy.actions imports compat transitively at import time.
+            from .actions.errors import BlockerError, FixAction
 
             raise BlockerError(
                 code="bash_not_found",

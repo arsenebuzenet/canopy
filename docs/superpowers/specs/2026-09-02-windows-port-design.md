@@ -19,9 +19,9 @@ All OS-conditional code lives in this module. Nothing else may import
 | API | POSIX | Windows |
 |---|---|---|
 | `IS_WINDOWS` | `False` | `True` |
-| `lock(f)` / `unlock(f)` — `f` is a file object or fd | `fcntl.flock(LOCK_EX / LOCK_UN)` | `msvcrt.locking(LK_LOCK / LK_UNLCK, 1)`; unlock swallows `OSError` |
-| `run_shell(cmd: str, cwd, **subprocess_kw)` | `subprocess.run(cmd, shell=True, ...)` | `subprocess.run([bash, "-c", cmd], ...)` where `bash` = `find_bash()`; falls back to `shell=True` (cmd.exe) if no bash |
-| `find_bash() -> Path \| None` | `None` (unused) | Git for Windows' bash: sibling of `git` on PATH (`<git>/../bin/bash.exe`, `<git>/../usr/bin/bash.exe`), then `shutil.which("bash")` **excluding** `System32\bash.exe` (that is WSL's launcher) |
+| `lock(f)` / `unlock(f)` — `f` is a file object or fd | `fcntl.flock(LOCK_EX / LOCK_UN)` | `msvcrt.locking(LK_NBLCK / LK_UNLCK, 1)` on byte 0 (offset saved and restored, so append-mode handles contend on the same byte); the poll retries only `EACCES`/`EDEADLOCK`; unlock swallows `OSError` |
+| `run_shell(cmd: str, cwd, **subprocess_kw)` | `subprocess.run(cmd, shell=True, ...)` | `subprocess.run([bash, "-c", cmd], ...)` where `bash` = `find_bash()`; raises `BlockerError(code="bash_not_found")` if no bash — never a silent cmd.exe fallback |
+| `find_bash() -> Path \| None` | `None` (unused) | Git for Windows' bash: found by walking up from `git` on PATH (up to 4 parents, checking `bin/bash.exe` and `usr/bin/bash.exe` at each — `git` may resolve to `<Git>/cmd/` or `<Git>/mingw64/bin/`), then `shutil.which("bash")` **excluding** `System32\bash.exe` (that is WSL's launcher) |
 | `user_home() -> Path` | `Path.home()` | `Path(os.environ["HOME"])` if `HOME` set, else `Path.home()` — `Path.home()` ignores `HOME` on Windows, so tests that monkeypatch `HOME` and Git-Bash users both get the expected dir |
 | `same_path(a, b) -> bool` | `Path(a).resolve() == Path(b).resolve()` | idem — case-insensitive via `os.path.normcase` |
 | `detached_popen_kwargs() -> dict` | `{"start_new_session": True}` | `{"creationflags": DETACHED_PROCESS \| CREATE_NEW_PROCESS_GROUP}` |
