@@ -27,7 +27,6 @@ Missing slot dirs → silently drop from the returned state.
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import json
 import os
 import tempfile
@@ -36,6 +35,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .. import compat
 from ..workspace.workspace import Workspace
 
 
@@ -184,12 +184,12 @@ def _slots_lock(workspace: Workspace):
     """
     lock_path = _state_path(workspace).parent / "slots.lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    f = open(lock_path, "w")
+    f = open(lock_path, "w", encoding="utf-8")
     try:
-        fcntl.flock(f, fcntl.LOCK_EX)
+        compat.lock(f)
         yield
     finally:
-        fcntl.flock(f, fcntl.LOCK_UN)
+        compat.unlock(f)
         f.close()
 
 

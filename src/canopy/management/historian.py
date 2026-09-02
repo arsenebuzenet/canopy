@@ -21,13 +21,12 @@ markdown (for the agent / dashboard). Storage is line-delimited JSON
 under the hood, rendered to markdown on demand. This keeps writes O(1)
 and lets the rendering layer evolve without a data migration.
 
-File concurrency: writes use ``fcntl.flock`` with the same pattern as
+File concurrency: writes use ``compat.lock`` with the same pattern as
 ``.canopy/state/heads.json`` so concurrent agents on the same feature
 across worktrees don't corrupt the log.
 """
 from __future__ import annotations
 
-import fcntl
 import json
 import os
 import tempfile
@@ -35,6 +34,8 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
+
+from .. import compat
 
 
 _MEMORY_DIR = ".canopy/memory"
@@ -83,10 +84,10 @@ def _locked_append(path: Path):
     _ensure_memory_gitignore(path.parent)
     with open(path, "a", encoding="utf-8") as f:
         try:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            compat.lock(f)
             yield f
         finally:
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            compat.unlock(f)
 
 
 def _ensure_memory_gitignore(memory_dir: Path) -> None:

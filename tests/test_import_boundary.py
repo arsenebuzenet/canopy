@@ -65,3 +65,20 @@ def test_management_modules_are_importable():
                  "resume", "last_visit", "ship", "conflicts", "slot_details",
                  "reads", "triage", "feature_state"]:
         importlib.import_module(f"canopy.management.{name}")
+
+
+def test_only_compat_and_hook_template_touch_platform_apis():
+    """fcntl/msvcrt/sys.platform live in compat.py (and the standalone hook template) only."""
+    import re
+    from pathlib import Path
+    src = Path(__file__).resolve().parent.parent / "src" / "canopy"
+    allowed = {src / "compat.py", src / "git" / "templates" / "post-checkout.py"}
+    pattern = re.compile(
+        r"^\s*(import fcntl|import msvcrt|from fcntl|from msvcrt)|sys\.platform|os\.name\b",
+        re.M,
+    )
+    offenders = [
+        str(p.relative_to(src)) for p in src.rglob("*.py")
+        if p not in allowed and pattern.search(p.read_text(encoding="utf-8"))
+    ]
+    assert offenders == []
