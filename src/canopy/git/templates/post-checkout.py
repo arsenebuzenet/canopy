@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -21,7 +22,14 @@ except ImportError:  # Windows
     import msvcrt
 
     def _lock(fd):
-        msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+        # LK_LOCK gives up after ~10s and raises OSError, unlike flock(LOCK_EX),
+        # which blocks indefinitely — so poll LK_NBLCK ourselves to match it.
+        while True:
+            try:
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                return
+            except OSError:
+                time.sleep(0.05)
 
 # Substituted at install time.
 CANOPY_REPO = "__CANOPY_REPO__"

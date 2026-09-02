@@ -1,7 +1,10 @@
 """Tests for canopy.git.hooks (install/uninstall, state file, worktrees)."""
+import importlib.util
 import json
 import os
 import subprocess
+import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -10,6 +13,39 @@ from canopy.git.hooks import (
     install_hook, uninstall_hook, hook_status,
     read_heads_state, resolve_hooks_dir,
 )
+
+# The hook template is standalone (copied into repos' .git/hooks/, so it
+# cannot import canopy.compat) and defines its own `_lock`. Load it as a
+# module under a name other than "__main__" so its `if __name__ ==
+# "__main__":` block doesn't run.
+_TEMPLATE_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "src" / "canopy" / "git" / "templates" / "post-checkout.py"
+)
+
+
+def _load_hook_template():
+    spec = importlib.util.spec_from_file_location("post_checkout_hook_template", _TEMPLATE_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_CHILD_LOCK_HOLDER = f"""
+import importlib.util
+import sys
+import time
+
+spec = importlib.util.spec_from_file_location("post_checkout_hook_template", r"{_TEMPLATE_PATH}")
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+
+path = sys.argv[1]
+with open(path, "r+", encoding="utf-8") as f:
+    m._lock(f.fileno())
+    print("locked", flush=True)
+    time.sleep(1.5)
+"""
 
 
 def _git(args, cwd):
@@ -227,3 +263,34 @@ def test_hook_installed_in_main_fires_from_worktree(workspace):
 
 def test_read_heads_state_missing_file(tmp_path):
     assert read_heads_state(tmp_path) == {}
+
+
+def test_template_lock_returns_immediately_when_uncontended(tmp_path):
+    module = _load_hook_template()
+    p = tmp_path / "heads.json.lock"
+    with open(p, "w", encoding="utf-8") as f:
+        module._lock(f.fileno())
+
+
+def test_template_lock_blocks_until_holder_releases(tmp_path):
+    """The template's inline `_lock` must poll like flock(LOCK_EX), not give
+    up after ~10s the way a bare msvcrt.locking(LK_LOCK, 1) would."""
+    p = tmp_path / "heads.json.lock"
+    p.write_text("x", encoding="utf-8")
+    child = subprocess.Popen(
+        [sys.executable, "-c", _CHILD_LOCK_HOLDER, str(p)],
+        stdout=subprocess.PIPE, text=True, encoding="utf-8",
+    )
+    try:
+        line = child.stdout.readline()
+        assert line.strip() == "locked"
+
+        module = _load_hook_template()
+        start = time.monotonic()
+        with open(p, "r+", encoding="utf-8") as f:
+            module._lock(f.fileno())
+        elapsed = time.monotonic() - start
+
+        assert elapsed >= 1.0
+    finally:
+        assert child.wait(timeout=5) == 0
