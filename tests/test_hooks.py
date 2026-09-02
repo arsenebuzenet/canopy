@@ -43,7 +43,7 @@ def test_install_creates_hook(workspace):
     content = hook.read_text()
     assert "__CANOPY_HOOK_MARKER__" in content
     assert '"repo-a"' in content
-    assert str(root.resolve()) in content
+    assert json.dumps(str(root.resolve())) in content
 
 
 def test_reinstall_overwrites_existing_canopy_hook(workspace):
@@ -130,7 +130,9 @@ def test_hook_chains_to_user_hook_after_recording(workspace):
     user_marker = api / ".git" / "hooks" / "USER_HOOK_RAN"
     user_hook = api / ".git" / "hooks" / "post-checkout"
     user_hook.parent.mkdir(exist_ok=True)
-    user_hook.write_text(f"#!/bin/sh\ntouch {user_marker}\n")
+    # Forward slashes: this file is executed by sh (Git Bash's on Windows),
+    # which mishandles a native Windows backslash path.
+    user_hook.write_text(f"#!/bin/sh\ntouch {user_marker.as_posix()}\n", encoding="utf-8")
     user_hook.chmod(0o755)
 
     install_hook(api, "repo-a", root)

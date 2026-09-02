@@ -5,13 +5,23 @@
 Installed by `canopy hooks install`. Never blocks git operations on errors.
 Chains to a pre-existing post-checkout.canopy-chained if present.
 """
-import fcntl
 import json
 import os
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+try:
+    import fcntl
+
+    def _lock(fd):
+        fcntl.flock(fd, fcntl.LOCK_EX)
+except ImportError:  # Windows
+    import msvcrt
+
+    def _lock(fd):
+        msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
 
 # Substituted at install time.
 CANOPY_REPO = "__CANOPY_REPO__"
@@ -28,7 +38,7 @@ def _record_state() -> None:
 
     branch = subprocess.run(
         ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-        capture_output=True, text=True, check=False,
+        capture_output=True, text=True, encoding="utf-8", check=False,
     ).stdout.strip()
     if not branch or branch == "HEAD":
         return  # detached; skip
@@ -41,22 +51,39 @@ def _record_state() -> None:
     state_file = state_dir / "heads.json"
     lock_file = state_dir / "heads.json.lock"
 
-    with open(lock_file, "w") as lock:
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+    with open(lock_file, "w", encoding="utf-8") as lock:
+        _lock(lock.fileno())
         try:
-            state = json.loads(state_file.read_text())
+            state = json.loads(state_file.read_text(encoding="utf-8"))
         except (FileNotFoundError, json.JSONDecodeError):
             state = {}
         state[CANOPY_REPO] = entry
         tmp = state_file.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(state, indent=2))
+        tmp.write_text(json.dumps(state, indent=2), encoding="utf-8")
         os.replace(tmp, state_file)
 
 
 def _chain_existing() -> None:
     chained = Path(__file__).parent / "post-checkout.canopy-chained"
-    if chained.is_file() and os.access(chained, os.X_OK):
+    if not (chained.is_file() and os.access(chained, os.X_OK)):
+        return
+    if os.name != "nt":
         os.execv(str(chained), [str(chained), *sys.argv[1:]])
+        return
+    # Windows has no kernel-level shebang dispatch, so os.execv can't run a
+    # script directly (CreateProcess raises "Exec format error"). Resolve
+    # the interpreter from the shebang line ourselves and shell out to it.
+    with open(chained, encoding="utf-8") as f:
+        first_line = f.readline()
+    interpreter = None
+    if first_line.startswith("#!"):
+        parts = first_line[2:].strip().split()
+        if parts:
+            is_env = os.path.basename(parts[0]) == "env"
+            interpreter = parts[-1] if is_env else os.path.basename(parts[0])
+    cmd = [interpreter, str(chained)] if interpreter else [str(chained)]
+    result = subprocess.run(cmd + sys.argv[1:], check=False)
+    sys.exit(result.returncode)
 
 
 if __name__ == "__main__":

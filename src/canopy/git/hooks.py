@@ -13,6 +13,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from .. import compat
+
 _HOOK_NAME = "post-checkout"
 _CHAINED_NAME = "post-checkout.canopy-chained"
 _MARKER = "__CANOPY_HOOK_MARKER__"
@@ -169,5 +171,7 @@ def _get_core_hooks_path(repo_path: Path) -> Path | None:
 
 
 def _make_executable(path: Path) -> None:
+    if compat.IS_WINDOWS:
+        return  # NTFS has no execute bit; Git for Windows runs hooks via sh regardless
     mode = path.stat().st_mode
     path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
