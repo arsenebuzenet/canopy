@@ -10,6 +10,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from .. import compat
+
 
 class PrecommitError(Exception):
     """A pre-commit hook failed."""
@@ -102,13 +104,14 @@ def _run_custom_preflight(repo_path: Path, command: str) -> dict:
     """Run a user-configured preflight command via the shell.
 
     Honors the augment's ``preflight_cmd`` literal — supports pipes /
-    chaining (e.g. ``ruff check . && pyright``) by passing through ``sh -c``.
+    chaining (e.g. ``ruff check . && pyright``) by passing through the
+    platform shell (``sh -c`` on POSIX, Git Bash on Windows).
     """
-    result = subprocess.run(
-        ["sh", "-c", command],
+    result = compat.run_shell(
+        command,
+        cwd=repo_path,
         capture_output=True,
         text=True, encoding="utf-8",
-        cwd=repo_path,
         timeout=120,
     )
     output = result.stdout

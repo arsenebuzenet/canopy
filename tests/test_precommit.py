@@ -54,11 +54,13 @@ def test_run_precommit_captures_stdout_and_stderr(empty_repo):
 
 def test_run_precommit_runs_in_repo_cwd(tmp_path: Path):
     """Custom command's $PWD is the repo path."""
+    from canopy.compat import IS_WINDOWS
     marker = tmp_path / "marker.txt"
-    cmd = f"pwd > {marker}"
+    pwd = "pwd -W" if IS_WINDOWS else "pwd"
+    cmd = f"{pwd} > '{marker.as_posix()}'"
     run_precommit(tmp_path, augments={"preflight_cmd": cmd})
     assert marker.exists()
-    assert marker.read_text(encoding="utf-8").strip() == str(tmp_path)
+    assert Path(marker.read_text(encoding="utf-8").strip()).resolve() == tmp_path.resolve()
 
 
 # ── augments: missing / falsy preflight_cmd falls back to auto-detect ────

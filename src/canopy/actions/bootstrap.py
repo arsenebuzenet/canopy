@@ -25,6 +25,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Iterable
 
+from .. import compat
 from ..workspace.workspace import Workspace
 from .aliases import resolve_feature
 from .errors import BlockerError
@@ -263,8 +264,8 @@ def _run_install(
     """
     import time
     start = time.monotonic()
-    proc = subprocess.run(
-        install_cmd, shell=True, cwd=worktree_path,
+    proc = compat.run_shell(
+        install_cmd, cwd=worktree_path,
         capture_output=not interactive, text=True, encoding="utf-8",
     )
     duration_ms = int((time.monotonic() - start) * 1000)
