@@ -484,3 +484,35 @@ def test_run_gate_respects_disable_env(workspace_with_canonical_only, monkeypatc
     monkeypatch.setenv("CANOPY_HOOKS_DISABLED", "1")
     code, _ = run_gate(_payload('git commit -m "x"', _root(ws)))
     assert code == 0     # would block without the escape hatch
+
+
+# ── Windows / msys path normalisation ───────────────────────────────────
+
+def test_backslash_paths_survive_parsing(tmp_path):
+    """Windows agents type C:\\Users\\... — shlex(posix=True) must not eat the backslashes."""
+    from canopy.actions.hook_gate import resolve_segments
+    from canopy.compat import IS_WINDOWS
+    if not IS_WINDOWS:
+        pytest.skip("backslash is an escape on POSIX")
+    win = str(tmp_path / "ui").replace("/", "\\")
+    segs = resolve_segments(f"git -C {win} commit -m 'x'", cwd=tmp_path)
+    assert segs[0].effective_dir.resolve() == (tmp_path / "ui").resolve()
+
+
+def test_msys_drive_prefix_is_rewritten():
+    """Git Bash spells C:\\x as /c/x; the gate maps it back on Windows."""
+    from canopy.actions.hook_gate import normalize_command_paths
+    from canopy.compat import IS_WINDOWS
+    out = normalize_command_paths("cd /c/Dev/ws/api && git push")
+    if IS_WINDOWS:
+        assert out == "cd C:/Dev/ws/api && git push"
+    else:
+        assert out == "cd /c/Dev/ws/api && git push"
+
+
+def test_normalize_is_identity_for_posix_commands():
+    from canopy.actions.hook_gate import normalize_command_paths
+    from canopy.compat import IS_WINDOWS
+    cmd = "cd /home/me/ws && git commit -m 'a\\nb'"
+    if not IS_WINDOWS:
+        assert normalize_command_paths(cmd) == cmd

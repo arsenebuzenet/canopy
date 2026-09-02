@@ -19,6 +19,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .. import compat
+
 _GIT_WORD = _re.compile(r"\bgit\b")
 
 
@@ -170,6 +172,22 @@ class GitSegment:
 
 _UNRESOLVABLE = ("$", "~", "`")   # vars/home/expansion → don't guess
 
+_MSYS_DRIVE = _re.compile(r"(?<![\w/])/([a-zA-Z])/")
+
+
+def normalize_command_paths(command: str) -> str:
+    """On Windows, make the command parseable by ``shlex(posix=True)``.
+
+    Backslash separators would be consumed as escapes, and Git Bash writes
+    ``C:\\x`` as ``/c/x``. Both are rewritten to ``C:/x`` before parsing.
+    On POSIX the command is returned untouched — a backslash there IS an
+    escape and ``/c/`` is an ordinary directory.
+    """
+    if not compat.IS_WINDOWS:
+        return command
+    out = command.replace("\\", "/")
+    return _MSYS_DRIVE.sub(lambda m: f"{m.group(1).upper()}:/", out)
+
 
 def _resolve_path(base: Path, raw: str) -> tuple[Path, bool]:
     token = raw.strip()
@@ -192,7 +210,7 @@ def resolve_segments(command: str, cwd: Path) -> list[GitSegment]:
     known = True
     for part in split_top_level(command):
         try:
-            argv = shlex.split(part, posix=True)
+            argv = shlex.split(normalize_command_paths(part), posix=True)
         except ValueError:
             continue                    # unparseable segment: skip, fail open
         if not argv:
