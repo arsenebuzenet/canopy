@@ -44,8 +44,9 @@ Bash, so the agent writes POSIX command lines. `run`, `install_cmd` and
   "PPID == 1" have no Windows equivalent. On Windows the check reports no
   orphans and the repair is a no-op; `SIGKILL` → `signal.SIGTERM` on Windows
   (`os.kill` maps it to `TerminateProcess`).
-- `actions/ide_workspace.py` — interpreter path `.venv/Scripts/python.exe` on
-  Windows, `.venv/bin/python` elsewhere.
+- `actions/ide_workspace.py` — folder paths written with `Path.as_posix()`;
+  VS Code accepts forward slashes on every OS and a `.code-workspace` built
+  from git-reported paths must not mix separators.
 
 ## 3. Git `post-checkout` hook template
 
