@@ -11,8 +11,20 @@ import sys
 from pathlib import Path
 
 
+def _utf8_stdio() -> None:
+    """Force UTF-8 on stdout/stderr so blocked-reason text (e.g. em dashes)
+    survives Windows' cp1252 default console encoding intact for the parent
+    process and for Claude Code, which reads hook output as UTF-8."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
+
+
 def gate_main() -> None:
     """PreToolUse shim. Exit 0 = allow; exit 2 = block, reason on stderr."""
+    _utf8_stdio()
     try:
         payload = json.loads(sys.stdin.read() or "{}")
     except Exception:
@@ -29,6 +41,7 @@ def gate_main() -> None:
 
 def context_main() -> None:
     """SessionStart shim. Prints the workspace brief to stdout (→ context)."""
+    _utf8_stdio()
     try:
         payload = json.loads(sys.stdin.read() or "{}")
         cwd = Path(payload.get("cwd") or Path.cwd())
