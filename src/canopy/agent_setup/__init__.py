@@ -19,6 +19,8 @@ import os
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
+from .. import compat
+
 _SKILLS_DIR = Path(__file__).parent / "skills"
 
 DEFAULT_SKILL = "using-canopy"
@@ -26,7 +28,7 @@ DEFAULT_SKILL = "using-canopy"
 
 def _user_skills_dir() -> Path:
     """Resolved at call time so tests that monkeypatch ``HOME`` work."""
-    return Path.home() / ".claude" / "skills"
+    return compat.user_home() / ".claude" / "skills"
 
 # Backward-compat alias — doctor.py imports this directly. Points at the
 # bundled source for the default skill.
