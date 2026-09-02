@@ -5,6 +5,7 @@
 Installed by `canopy hooks install`. Never blocks git operations on errors.
 Chains to a pre-existing post-checkout.canopy-chained if present.
 """
+import errno
 import json
 import os
 import subprocess
@@ -18,17 +19,28 @@ try:
 
     def _lock(fd):
         fcntl.flock(fd, fcntl.LOCK_EX)
+        return True
 except ImportError:  # Windows
     import msvcrt
 
+    _LOCK_TIMEOUT = 10.0
+
     def _lock(fd):
         # LK_LOCK gives up after ~10s and raises OSError, unlike flock(LOCK_EX),
-        # which blocks indefinitely — so poll LK_NBLCK ourselves to match it.
+        # which blocks indefinitely — so poll LK_NBLCK ourselves. The poll is
+        # bounded and only retries contention (EACCES/EDEADLOCK): an infinite
+        # loop is not an exception, so the fail-open wrapper below would not
+        # catch it and a wedged holder would hang `git checkout` outright.
+        deadline = time.monotonic() + _LOCK_TIMEOUT
         while True:
             try:
                 msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
-                return
-            except OSError:
+                return True
+            except OSError as exc:
+                if exc.errno not in (errno.EACCES, errno.EDEADLOCK):
+                    raise
+                if time.monotonic() >= deadline:
+                    return False
                 time.sleep(0.05)
 
 # Substituted at install time.
@@ -60,7 +72,8 @@ def _record_state() -> None:
     lock_file = state_dir / "heads.json.lock"
 
     with open(lock_file, "w", encoding="utf-8") as lock:
-        _lock(lock.fileno())
+        if not _lock(lock.fileno()):
+            return          # lock wedged: drop this record rather than stall git
         try:
             state = json.loads(state_file.read_text(encoding="utf-8"))
         except (FileNotFoundError, json.JSONDecodeError):

@@ -7,6 +7,7 @@ goes through here so the rest of the code base stays platform-blind.
 """
 from __future__ import annotations
 
+import errno
 import os
 import shutil
 import subprocess
@@ -27,23 +28,42 @@ def _fd(f: Any) -> int:
 if IS_WINDOWS:
     import msvcrt
 
+    # msvcrt.locking reports an already-held range as EACCES; EDEADLOCK is its
+    # documented companion. Anything else (EBADF, ENOENT) is a real fault and
+    # must escape the retry loop rather than spin the CPU forever.
+    _LOCK_CONTENTION_ERRNOS = frozenset({errno.EACCES, errno.EDEADLOCK})
+
+    def _lock_byte_zero(fd: int, mode: int) -> None:
+        """Apply ``mode`` to byte 0 whatever the handle's offset is.
+
+        msvcrt locks a range starting at the CURRENT offset, and callers pass
+        append-mode handles that sit at a moving EOF — two writers would each
+        lock a different byte and never see each other. Byte 0 is the one
+        address they agree on; O_APPEND still writes at EOF regardless.
+        """
+        pos = os.lseek(fd, 0, os.SEEK_CUR)
+        os.lseek(fd, 0, os.SEEK_SET)
+        try:
+            msvcrt.locking(fd, mode, 1)
+        finally:
+            os.lseek(fd, pos, os.SEEK_SET)
+
     def lock(f: Any) -> None:
-        # msvcrt locks a byte range from the current position; one byte is
-        # enough to serialise writers, and locking past EOF is allowed, so
-        # append-mode handles work too.
         # LK_LOCK gives up after ~10s and raises OSError, unlike flock(LOCK_EX),
         # which blocks indefinitely — so poll LK_NBLCK ourselves to match it.
         fd = _fd(f)
         while True:
             try:
-                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                _lock_byte_zero(fd, msvcrt.LK_NBLCK)
                 return
-            except OSError:
+            except OSError as exc:
+                if exc.errno not in _LOCK_CONTENTION_ERRNOS:
+                    raise
                 time.sleep(0.05)
 
     def unlock(f: Any) -> None:
         try:
-            msvcrt.locking(_fd(f), msvcrt.LK_UNLCK, 1)
+            _lock_byte_zero(_fd(f), msvcrt.LK_UNLCK)
         except OSError:
             pass
 else:
