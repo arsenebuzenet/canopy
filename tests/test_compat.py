@@ -209,3 +209,14 @@ def test_same_path_normalises_separators_and_case(tmp_path):
     if compat.IS_WINDOWS:
         assert compat.same_path(a, fwd.upper())
     assert not compat.same_path(a, tmp_path / "other")
+
+
+def test_find_bash_rejects_the_windowsapps_launcher(monkeypatch):
+    r"""%LOCALAPPDATA%\Microsoft\WindowsApps\bash.exe is the WSL launcher too —
+    the App Execution Alias, not Git for Windows."""
+    monkeypatch.setattr(compat, "IS_WINDOWS", True)
+    monkeypatch.setattr(compat.shutil, "which", lambda name, *a, **kw: (
+        r"C:\Users\me\AppData\Local\Microsoft\WindowsApps\bash.exe"
+        if name == "bash" else None
+    ))
+    assert compat.find_bash() is None

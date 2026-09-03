@@ -90,7 +90,8 @@ def user_home() -> Path:
 # ── shell dispatch ───────────────────────────────────────────────────
 
 def find_bash() -> Path | None:
-    """Git for Windows' bash. ``System32\\bash.exe`` is WSL's launcher — never that."""
+    """Git for Windows' bash. System32 and WindowsApps ``bash.exe`` are WSL
+    launchers (the second is the App Execution Alias) — never those."""
     if not IS_WINDOWS:
         return None
     git = shutil.which("git")
@@ -104,7 +105,7 @@ def find_bash() -> Path | None:
                 if candidate.exists():
                     return candidate
     found = shutil.which("bash")
-    if found and "system32" not in found.lower():
+    if found and not any(p in found.lower() for p in ("system32", "windowsapps")):
         return Path(found)
     return None
 
