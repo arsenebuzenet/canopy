@@ -2,6 +2,7 @@
 """Platform seam — the only module allowed to branch on the OS."""
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -118,12 +119,14 @@ def test_lock_serialises_append_mode_writers(tmp_path):
     assert p.read_text(encoding="utf-8").splitlines()[-2:] == ["child", "parent"]
 
 
-def test_lock_reraises_non_contention_oserror():
-    """A bad fd must fail fast, not spin forever in the Windows poll loop."""
-    start = time.monotonic()
+def test_lock_reraises_non_contention_oserror(tmp_path):
+    """A closed fd must fail fast, not spin forever in the Windows poll loop."""
+    fd = os.open(str(tmp_path / "closed.lock"), os.O_RDWR | os.O_CREAT)
+    os.close(fd)
+    started = time.monotonic()
     with pytest.raises(OSError):
-        compat.lock(-1)
-    assert time.monotonic() - start < 1.0
+        compat.lock(fd)
+    assert time.monotonic() - started < 1.0
 
 
 def test_user_home_honours_HOME_env(tmp_path, monkeypatch):
