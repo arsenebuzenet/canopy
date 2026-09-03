@@ -172,7 +172,11 @@ class GitSegment:
 
 _UNRESOLVABLE = ("$", "~", "`")   # vars/home/expansion → don't guess
 
-_MSYS_DRIVE = _re.compile(r"(?<![\w/])/([a-zA-Z])/")
+# A drive colon must not open an msys prefix: `D:\a\canopy` sweeps to
+# `D:/a/canopy`, and a lookbehind that allows `:` reads `/a/` as a drive and
+# yields `D:A:/canopy` — a confidently wrong directory, which the fail-open
+# contract exists to prevent.
+_MSYS_DRIVE = _re.compile(r"(?<![\w/:])/([a-zA-Z])/")
 
 _ESCAPED_SPACE = "\x00"           # sentinel; never valid in a command line
 

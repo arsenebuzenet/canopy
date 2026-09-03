@@ -533,3 +533,22 @@ def test_normalize_is_identity_for_posix_commands():
     cmd = "cd /home/me/ws && git commit -m 'a\\nb'"
     if not IS_WINDOWS:
         assert normalize_command_paths(cmd) == cmd
+
+
+def test_native_drive_path_with_single_letter_component(tmp_path):
+    r"""`D:\a\canopy` (the GitHub Actions checkout layout) must survive the
+    sweep: the drive colon used to satisfy the msys lookbehind, so `/a/`
+    was rewritten to `A:/` and the gate blocked from a confidently wrong dir."""
+    from canopy.actions.hook_gate import normalize_command_paths, resolve_segments
+    from canopy.compat import IS_WINDOWS
+    if not IS_WINDOWS:
+        pytest.skip("Windows path normalisation only")
+    cmd = r"cd D:\a\canopy && git commit -m x"
+    assert normalize_command_paths(cmd) == "cd D:/a/canopy && git commit -m x"
+    segs = resolve_segments(cmd, cwd=tmp_path)
+    assert len(segs) == 1
+    assert segs[0].dir_known is True
+    assert segs[0].effective_dir == Path(r"D:\a\canopy")
+    # The msys spelling of the same path still maps to the drive.
+    assert (normalize_command_paths("cd /d/a/canopy && git commit -m x")
+            == "cd D:/a/canopy && git commit -m x")
