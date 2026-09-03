@@ -11,23 +11,10 @@ import sys
 from pathlib import Path
 
 
-def _utf8_stdio() -> None:
-    """Force UTF-8 on all three streams: Claude Code writes the payload as
-    UTF-8 and reads hook output as UTF-8, but a piped stdio on Windows
-    defaults to the ANSI codepage — which would mojibake a non-ASCII cwd or
-    command on the way in and a blocked reason (em dashes) on the way out.
-
-    Callers must invoke this before the first read of ``sys.stdin``."""
-    for stream in (sys.stdin, sys.stdout, sys.stderr):
-        try:
-            stream.reconfigure(encoding="utf-8")
-        except (AttributeError, ValueError):
-            pass
-
-
 def gate_main() -> None:
     """PreToolUse shim. Exit 0 = allow; exit 2 = block, reason on stderr."""
-    _utf8_stdio()
+    from .compat import utf8_stdio
+    utf8_stdio()
     try:
         payload = json.loads(sys.stdin.read() or "{}")
     except Exception:
@@ -44,7 +31,8 @@ def gate_main() -> None:
 
 def context_main() -> None:
     """SessionStart shim. Prints the workspace brief to stdout (→ context)."""
-    _utf8_stdio()
+    from .compat import utf8_stdio
+    utf8_stdio()
     try:
         payload = json.loads(sys.stdin.read() or "{}")
         cwd = Path(payload.get("cwd") or Path.cwd())

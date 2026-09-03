@@ -1138,6 +1138,8 @@ def preflight(cwd: str | None = None) -> dict:
 
 def main():
     import sys
+    from ..compat import utf8_stdio
+    utf8_stdio()
     if len(sys.argv) > 1 and sys.argv[1] in ("--version", "-V"):
         from .. import __version__
         print(f"canopy-mcp {__version__}")

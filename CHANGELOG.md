@@ -9,6 +9,8 @@ Versions follow semver. Pre-1.0 — minor bumps may add features or break behavi
 - Native Windows support: a `compat` platform seam (locks, shell dispatch,
   home dir, detached spawn), a Windows-safe hook template, UTF-8 on all text
   I/O, gate path normalisation, and Windows branches in `doctor`.
+- CLI, MCP server and hook shims force UTF-8 stdio so piped output never hits
+  the cp1252 default on Windows.
 - `mcp` pinned to `<2`.
 - CI runs on `windows-latest` in addition to `ubuntu-latest`.
 

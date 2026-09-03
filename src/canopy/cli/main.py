@@ -3520,6 +3520,9 @@ def cmd_join(args: argparse.Namespace) -> None:
 # ── Entry point ───────────────────────────────────────────────────────────
 
 def main() -> None:
+    from ..compat import utf8_stdio
+    utf8_stdio()
+
     from .. import __version__
 
     parser = argparse.ArgumentParser(

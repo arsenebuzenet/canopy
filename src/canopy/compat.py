@@ -155,3 +155,23 @@ def same_path(a: Path | str, b: Path | str) -> bool:
     """True if ``a`` and ``b`` name the same location (separators/case-insensitive on Windows)."""
     ra, rb = Path(a).resolve(), Path(b).resolve()
     return os.path.normcase(str(ra)) == os.path.normcase(str(rb))
+
+
+# ── stdio encoding ───────────────────────────────────────────────────
+
+def utf8_stdio() -> None:
+    """Force UTF-8 on stdin/stdout/stderr.
+
+    A piped stdio on Windows defaults to the console codepage (cp1252),
+    not UTF-8 — only an interactive Windows Terminal happens to negotiate
+    UTF-8 on its own. Every glyph canopy prints (``✓``, `→`, box-drawing
+    separators) then raises ``UnicodeEncodeError`` the moment stdout is
+    redirected to a file, a pipe, or (critically) an agent's shell tool.
+    POSIX locales are already UTF-8, so calling this there is a no-op.
+
+    Call before the first read/write of any of the three streams."""
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
