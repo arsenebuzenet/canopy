@@ -4,7 +4,7 @@ Tracks the Python side (CLI + MCP server). The VSCode extension has its own [vsc
 
 Versions follow semver. Pre-1.0 — minor bumps may add features or break behavior; the README is the source-of-truth contract.
 
-## Unreleased
+## 4.0.0-rc2 — 2026-09-03 (Native Windows support)
 
 - Native Windows support: a `compat` platform seam (locks, shell dispatch,
   home dir, detached spawn), a Windows-safe hook template, UTF-8 on all text
