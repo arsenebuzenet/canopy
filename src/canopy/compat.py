@@ -1,5 +1,10 @@
 # src/canopy/compat.py
-"""Platform seam — the only module that branches on the operating system.
+"""Platform seam — the only module allowed to import ``fcntl``/``msvcrt`` or
+test ``sys.platform``/``os.name`` (the standalone hook template aside), as
+``tests/test_import_boundary.py`` enforces. ``platform.system()`` stays
+permitted elsewhere for install hints — ``cli/main.py`` and
+``integrations/github.py`` word their advice per OS without behaving
+differently.
 
 Windows has no ``fcntl``, no ``sh``, and ``Path.home()`` ignores ``HOME``.
 Everything canopy needs from the OS that differs between POSIX and Windows

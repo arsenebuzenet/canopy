@@ -105,7 +105,10 @@ def _chain_existing() -> None:
             interpreter = parts[-1] if is_env else os.path.basename(parts[0])
     if (interpreter and interpreter.startswith("python")
             and shutil.which(interpreter) is None):
-        interpreter = sys.executable    # `python3` is rarely on a Windows PATH
+        # Windows resolves `python3` through an App Execution Alias, which may
+        # be the Store stub or absent entirely on a trimmed install — when
+        # `which` can't resolve it, run the interpreter already in hand.
+        interpreter = sys.executable
     cmd = [interpreter, str(chained)] if interpreter else [str(chained)]
     try:
         result = subprocess.run(cmd + sys.argv[1:], check=False)
