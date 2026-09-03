@@ -552,3 +552,20 @@ def test_native_drive_path_with_single_letter_component(tmp_path):
     # The msys spelling of the same path still maps to the drive.
     assert (normalize_command_paths("cd /d/a/canopy && git commit -m x")
             == "cd D:/a/canopy && git commit -m x")
+
+
+def test_escaped_quote_does_not_drop_the_segment(tmp_path):
+    """A POSIX `\\"` inside a commit message must not become `/"` — that leaves
+    an odd quote count, shlex raises, the segment is skipped and the gate
+    fails open on a mutation."""
+    from canopy.actions.hook_gate import resolve_segments
+    from canopy.compat import IS_WINDOWS
+    if not IS_WINDOWS:
+        pytest.skip("Windows path normalisation only")
+    segs = resolve_segments('git commit -m "note: use \\" as a quote"', cwd=tmp_path)
+    assert len(segs) == 1
+    assert segs[0].argv_after_globals[0] == "commit"
+    win = str(tmp_path / "ui").replace("/", "\\")
+    segs = resolve_segments(f'git -C {win} commit -m "say \\" here"', cwd=tmp_path)
+    assert len(segs) == 1
+    assert segs[0].effective_dir.resolve() == (tmp_path / "ui").resolve()

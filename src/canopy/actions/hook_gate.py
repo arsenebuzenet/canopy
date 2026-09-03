@@ -178,7 +178,13 @@ _UNRESOLVABLE = ("$", "~", "`")   # vars/home/expansion → don't guess
 # contract exists to prevent.
 _MSYS_DRIVE = _re.compile(r"(?<![\w/:])/([a-zA-Z])/")
 
-_ESCAPED_SPACE = "\x00"           # sentinel; never valid in a command line
+# A backslash before whitespace, a quote, `$`, a backtick or another backslash
+# is a shell escape, not a path separator. Sweeping those into `/` corrupts the
+# command: `-m "use \" here"` becomes `-m "use /" here"`, whose quote count is
+# odd, so shlex raises, resolve_segments skips the segment, and the gate lets an
+# unjudged mutation through. Park them through the sweep and hand them back.
+_SHELL_ESCAPE = _re.compile(r"\\([\s\"'$`\\])")
+_PARKED = _re.compile("\x00(\\d+)\x00")   # \x00 is never valid in a command line
 
 
 def normalize_command_paths(command: str) -> str:
@@ -191,13 +197,15 @@ def normalize_command_paths(command: str) -> str:
     """
     if not compat.IS_WINDOWS:
         return command
-    # `\ ` is Git Bash's escaped space — the one backslash on a Windows command
-    # line that really is an escape. Park it while the sweep rewrites the rest,
-    # then hand it back to shlex intact; otherwise `cd /c/my\ dir/repo` resolves
-    # to `C:\my` with dir_known=True, i.e. a confidently wrong directory.
-    out = command.replace("\\ ", _ESCAPED_SPACE).replace("\\", "/")
-    out = out.replace(_ESCAPED_SPACE, "\\ ")
-    return _MSYS_DRIVE.sub(lambda m: f"{m.group(1).upper()}:/", out)
+    parked: list[str] = []
+
+    def _park(m: _re.Match[str]) -> str:
+        parked.append(m.group(1))
+        return f"\x00{len(parked) - 1}\x00"
+
+    out = _SHELL_ESCAPE.sub(_park, command).replace("\\", "/")
+    out = _MSYS_DRIVE.sub(lambda m: f"{m.group(1).upper()}:/", out)
+    return _PARKED.sub(lambda m: "\\" + parked[int(m.group(1))], out)
 
 
 def _resolve_path(base: Path, raw: str) -> tuple[Path, bool]:
