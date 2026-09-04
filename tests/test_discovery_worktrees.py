@@ -48,3 +48,16 @@ def test_summarize_legacy_feature_named_dirs(tmp_path):
 
 def test_summarize_empty_when_no_worktrees(tmp_path):
     assert summarize_worktree_dirs(tmp_path) == {}
+
+
+def test_summarize_skips_dir_links(tmp_path):
+    """A junction/symlink next to the slot dirs is not a feature dir."""
+    from canopy import compat
+    root = tmp_path / "ws"
+    real = tmp_path / "real"
+    (real / "pkg").mkdir(parents=True)
+    wt = root / ".canopy" / "worktrees"
+    (wt / "legacy-feat" / "repo-a").mkdir(parents=True)
+    compat.make_dir_link(wt / "shared", real)
+    summary = summarize_worktree_dirs(root)
+    assert summary == {"legacy-feat": ["repo-a"]}

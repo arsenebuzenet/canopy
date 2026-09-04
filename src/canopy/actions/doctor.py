@@ -238,7 +238,7 @@ def check_worktree_orphan(workspace: Workspace) -> list[Issue]:
     features = _load_features_raw(workspace.config.root)
     issues: list[Issue] = []
     for feat_dir in sorted(wt_root.iterdir()):
-        if not feat_dir.is_dir():
+        if not feat_dir.is_dir() or compat.is_dir_link(feat_dir):
             continue
         if re.fullmatch(r"worktree-\d+", feat_dir.name):
             continue  # slot dir — handled by check_slot_* functions
@@ -246,7 +246,7 @@ def check_worktree_orphan(workspace: Workspace) -> list[Issue]:
         feature_data = features.get(feature_name)
         feature_repos = (feature_data or {}).get("repos") or []
         for repo_dir in sorted(feat_dir.iterdir()):
-            if not repo_dir.is_dir():
+            if not repo_dir.is_dir() or compat.is_dir_link(repo_dir):
                 continue
             repo_name = repo_dir.name
             if feature_data is None or repo_name not in feature_repos:
@@ -1108,6 +1108,18 @@ def repair_worktree_orphan(workspace: Workspace, issue: Issue) -> RepairResult:
         return RepairResult(code=issue.code, success=True,
                             action_taken="orphan dir already gone",
                             repo=repo_name, feature=feature)
+    # Never delete through a directory link: a junction planted for
+    # [[externals]] (or by hand) reaches real directories outside .canopy/.
+    wt_root = workspace.config.root / ".canopy" / "worktrees"
+    probe = target
+    while True:
+        if compat.is_dir_link(probe):
+            return RepairResult(code=issue.code, success=False, repo=repo_name,
+                                feature=feature, action_taken="",
+                                error=f"refusing to delete through a link: {probe}")
+        if probe.parent == probe or compat.same_path(probe, wt_root):
+            break
+        probe = probe.parent
     # Try canonical git worktree remove against the parent repo. The repo
     # might itself be a worktree; resolve to the main path before issuing.
     try:

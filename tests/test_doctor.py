@@ -953,3 +953,37 @@ def test_doctor_slot_repo_worktree_missing_not_autofixable_when_branch_gone(
     ]
     assert findings
     assert findings[0]["auto_fixable"] is False
+
+
+# ── directory links under worktrees/ ────────────────────────────────────
+
+def _plant_link(workspace_dir, name="shared"):
+    """A junction/symlink at .canopy/worktrees/<name> pointing at a real dir with subdirs."""
+    from canopy import compat
+    real = workspace_dir.parent / f"{name}-real"
+    (real / "pkg").mkdir(parents=True)
+    (real / "pkg" / "keep.txt").write_text("keep", encoding="utf-8")
+    link = workspace_dir / ".canopy" / "worktrees" / name
+    link.parent.mkdir(parents=True, exist_ok=True)
+    compat.make_dir_link(link, real)
+    return real, link
+
+
+def test_worktree_orphan_skips_dir_links(workspace_with_feature):
+    _write_features(workspace_with_feature, {})
+    _plant_link(workspace_with_feature)
+    ws = _make_workspace(workspace_with_feature)
+    assert check_worktree_orphan(ws) == []
+
+
+def test_repair_worktree_orphan_refuses_to_delete_through_link(workspace_with_feature):
+    _write_features(workspace_with_feature, {})
+    real, link = _plant_link(workspace_with_feature)
+    ws = _make_workspace(workspace_with_feature)
+    issue = Issue(code="worktree_orphan", severity="warn", what="x",
+                  actual=str(link / "pkg"), repo="pkg", feature="shared", auto_fixable=True)
+    result = repair_worktree_orphan(ws, issue)
+    assert not result.success
+    assert "through a link" in (result.error or "")
+    assert (real / "pkg" / "keep.txt").read_text(encoding="utf-8") == "keep"
+    assert link.exists()
