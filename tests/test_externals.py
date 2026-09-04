@@ -321,3 +321,68 @@ def test_switch_blocks_before_mutation_when_external_target_missing(workspace_wi
     assert stash_list == ""
     assert not (ws.config.root / ".canopy" / "worktrees" / "worktree-1").exists()
     assert sm.read_state(ws).in_flight is None
+
+
+# ── doctor ───────────────────────────────────────────────────────────
+
+def _codes(ws):
+    from canopy.actions.doctor import doctor
+    return {i["code"]: i for i in doctor(ws)["issues"]}
+
+
+def test_doctor_reports_missing_link(workspace_with_external):
+    issues = _codes(workspace_with_external)
+    issue = issues["external_link_missing"]
+    assert issue["severity"] == "warn"
+    assert issue["auto_fixable"] is True
+    assert issue["details"]["name"] == "ext-lib"
+
+
+def test_doctor_reports_stale_link(workspace_with_external, tmp_path):
+    ext = _ext(workspace_with_external)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    ext.link.parent.mkdir(parents=True, exist_ok=True)
+    compat.make_dir_link(ext.link, elsewhere)
+    assert _codes(workspace_with_external)["external_link_stale"]["auto_fixable"] is True
+
+
+def test_doctor_reports_shadowed_link_not_fixable(workspace_with_external):
+    _ext(workspace_with_external).link.mkdir(parents=True)
+    issue = _codes(workspace_with_external)["external_link_shadowed"]
+    assert issue["severity"] == "error"
+    assert issue["auto_fixable"] is False
+
+
+def test_doctor_reports_target_missing_not_fixable(workspace_with_external):
+    import shutil
+    shutil.rmtree(_ext(workspace_with_external).target)
+    issue = _codes(workspace_with_external)["external_target_missing"]
+    assert issue["severity"] == "error"
+    assert issue["auto_fixable"] is False
+    assert "external_link_missing" not in _codes(workspace_with_external)
+
+
+def test_doctor_fix_creates_link(workspace_with_external):
+    from canopy.actions.doctor import doctor
+    report = doctor(workspace_with_external, fix=True, fix_categories=["externals"])
+    assert any(f["code"] == "external_link_missing" and f["success"] for f in report["fixed"])
+    assert compat.is_dir_link(_ext(workspace_with_external).link)
+    assert "external_link_missing" not in _codes(workspace_with_external)
+
+
+def test_doctor_clean_when_link_ok(workspace_with_external):
+    from canopy.actions.externals import ensure_external_links
+    ensure_external_links(workspace_with_external)
+    assert not any(c.startswith("external_") for c in _codes(workspace_with_external))
+
+
+def test_cli_fix_category_accepts_externals():
+    from canopy.cli.main import main
+    import sys
+    from unittest.mock import patch
+    # argparse must accept the choice; the command itself needs a workspace, so stop at parse time.
+    with patch.object(sys, "argv", ["canopy", "doctor", "--fix-category", "externals", "--help"]):
+        with pytest.raises(SystemExit) as e:
+            main()
+    assert e.value.code == 0

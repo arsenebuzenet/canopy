@@ -40,6 +40,7 @@ from .. import compat
 from ..git import hooks as canopy_hooks
 from ..git import repo as git
 from ..workspace.workspace import Workspace
+from .errors import BlockerError
 
 
 Severity = Literal["info", "warn", "error"]
@@ -130,6 +131,7 @@ STATE_CATEGORIES = {
     "features",
     "branches",
     "slots",
+    "externals",
 }
 INSTALL_CATEGORIES = {"cli", "mcp", "skill"}
 ALL_CATEGORIES = STATE_CATEGORIES | INSTALL_CATEGORIES
@@ -673,6 +675,47 @@ def check_slot_repo_worktree_missing(workspace: Workspace) -> list[Issue]:
     return issues
 
 
+# ── externals ────────────────────────────────────────────────────────────
+
+_EXTERNAL_CODES = {
+    "missing": ("external_link_missing", "warn", True),
+    "stale": ("external_link_stale", "warn", True),
+    "shadowed": ("external_link_shadowed", "error", False),
+    "target_missing": ("external_target_missing", "error", False),
+}
+
+
+def check_externals(workspace: Workspace) -> list[Issue]:
+    """Every ``[[externals]]`` link must exist and point at its target.
+
+    One walker emits all four ``external_*`` codes; the registry maps the
+    other three to a sentinel so the orchestrator does not double-emit.
+    """
+    from .externals import external_status
+    issues: list[Issue] = []
+    for st in external_status(workspace):
+        if st["state"] == "ok":
+            continue
+        code, severity, fixable = _EXTERNAL_CODES[st["state"]]
+        if st["state"] == "target_missing":
+            fix = f"restore {st['target']} or drop the [[externals]] entry '{st['name']}'"
+        elif st["state"] == "shadowed":
+            fix = f"move {st['link']} out of the way, then `canopy doctor --fix-category externals`"
+        else:
+            fix = "canopy doctor --fix-category externals"
+        issues.append(Issue(
+            code=code,
+            severity=severity,
+            what=f"external '{st['name']}' is {st['state'].replace('_', ' ')}",
+            expected=f"link {st['link']} -> {st['target']}",
+            actual=st["state"],
+            fix_action=fix,
+            auto_fixable=fixable,
+            details={"name": st["name"], "target": st["target"], "link": st["link"]},
+        ))
+    return issues
+
+
 # ── Install-staleness checks ─────────────────────────────────────────────
 
 
@@ -946,6 +989,11 @@ _CHECKS: dict[str, tuple[str, Any]] = {
     # check that returns [] so the orchestrator doesn't double-emit; the
     # fix-loop lookup still finds the category for category filtering.
     "slot_detached_head": ("slots", lambda _ws: []),
+    "external_link_missing": ("externals", check_externals),
+    # The three below share check_externals' walker (see slot_detached_head).
+    "external_link_stale": ("externals", lambda _ws: []),
+    "external_link_shadowed": ("externals", lambda _ws: []),
+    "external_target_missing": ("externals", lambda _ws: []),
 }
 
 
@@ -1332,6 +1380,24 @@ def repair_slot_repo_worktree_missing(workspace: Workspace, issue: Issue) -> Rep
                         action_taken=f"git worktree add {slot_path} {branch}")
 
 
+def repair_external_link(workspace: Workspace, issue: Issue) -> RepairResult:
+    """Create or recreate one external's link (missing / stale)."""
+    from .externals import ensure_external_links
+    name = issue.details.get("name")
+    if not name:
+        return RepairResult(code=issue.code, success=False, action_taken="",
+                            error="missing external name on issue")
+    try:
+        out = ensure_external_links(workspace, names=[name])
+    except BlockerError as e:
+        return RepairResult(code=issue.code, success=False, action_taken="", error=e.what)
+    if not out or out[0]["state"] != "ok":
+        return RepairResult(code=issue.code, success=False, action_taken="",
+                            error=f"link state after repair: {out[0]['state'] if out else 'unknown'}")
+    return RepairResult(code=issue.code, success=True,
+                        action_taken=f"linked {out[0]['link']} -> {out[0]['target']}")
+
+
 _REPAIRS: dict[str, Any] = {
     "heads_stale": repair_heads_stale,
     "active_feature_orphan": repair_active_feature_orphan,
@@ -1347,6 +1413,8 @@ _REPAIRS: dict[str, Any] = {
     "mcp_orphans": repair_mcp_orphans,
     "slot_entry_orphan": repair_slot_entry_orphan,
     "slot_repo_worktree_missing": repair_slot_repo_worktree_missing,
+    "external_link_missing": repair_external_link,
+    "external_link_stale": repair_external_link,
     # cli_stale, mcp_stale, features_unknown_repo, branches_missing,
     # slot_dir_orphan, slot_branch_mismatch have no auto-fix —
     # repair returns surfaced advice via the issue's `fix_action` instead.
