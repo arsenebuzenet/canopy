@@ -3,6 +3,7 @@ Parse and validate canopy.toml workspace configuration.
 """
 from __future__ import annotations
 
+import os
 import sys
 if sys.version_info >= (3, 11):
     import tomllib
@@ -40,6 +41,73 @@ class RepoConfig:
 
 
 @dataclass
+class ExternalConfig:
+    """A directory the repos reference by relative path but canopy does not manage.
+
+    ``link`` is where canopy plants a directory link so the same relative
+    reference resolves from inside a warm slot. Computed lexically from
+    ``worktree-0`` — any path that climbs above the slot dir lands at the
+    same place for every slot id, so one link serves all slots.
+    """
+    name: str
+    path: str
+    target: Path
+    link: Path
+
+
+def make_external(root: Path, path: str, name: str | None = None) -> ExternalConfig:
+    """Build an ``ExternalConfig`` from a ``[[externals]]`` entry, validating geometry."""
+    if not isinstance(path, str) or not path:
+        raise ConfigError(f"[[externals]] path must be a non-empty string, got: {path!r}")
+    if os.path.isabs(path):
+        ext_name = name or Path(path).name
+        raise ConfigError(
+            f"[[externals]] '{ext_name}': path must be relative to the workspace root, "
+            f"got: {path}"
+        )
+    root = Path(os.path.normpath(str(root)))
+    target = Path(os.path.normpath(str(root / path)))
+    link = Path(os.path.normpath(str(root / ".canopy" / "worktrees" / "worktree-0" / path)))
+    ext_name = name or target.name
+    if not ext_name:
+        raise ConfigError(f"[[externals]] cannot derive a name from path {path!r}; set 'name'")
+    if _is_under(target, root):
+        raise ConfigError(
+            f"[[externals]] '{ext_name}': path {path!r} is inside the workspace root; "
+            "only directories outside the workspace are supported"
+        )
+    dot_canopy = root / ".canopy"
+    worktrees_root = dot_canopy / "worktrees"
+    # Equality (not just containment) with .canopy or .canopy/worktrees means
+    # the link would land ON one of canopy's own state dirs rather than
+    # beside them — a junction planted there would shadow live slot data.
+    if not _is_under(link, dot_canopy, strict=True) or _paths_equal(link, worktrees_root):
+        raise ConfigError(
+            f"[[externals]] '{ext_name}': path {path!r} climbs too far above the workspace "
+            "(its slot-relative link would leave .canopy/)"
+        )
+    return ExternalConfig(name=ext_name, path=path, target=target, link=link)
+
+
+def _is_under(child: Path, parent: Path, *, strict: bool = False) -> bool:
+    c = os.path.normcase(str(child))
+    p = os.path.normcase(str(parent))
+    if strict:
+        return c != p and c.startswith(p.rstrip(os.sep) + os.sep)
+    return c == p or c.startswith(p.rstrip(os.sep) + os.sep)
+
+
+def _paths_equal(a: Path, b: Path) -> bool:
+    return os.path.normcase(str(a)) == os.path.normcase(str(b))
+
+
+def _repo_path_depth(path: str) -> int:
+    """Number of path components after normalizing (``./api`` counts as one)."""
+    normalized = os.path.normpath(path).replace("\\", "/")
+    return len([p for p in normalized.split("/") if p and p != "."])
+
+
+@dataclass
 class IssueProviderConfig:
     """Per-workspace issue provider selection (M5).
 
@@ -71,6 +139,7 @@ class WorkspaceConfig:
     # M6 — IDE workspace template + per-workspace bootstrap default.
     ide: str = "none"                   # "vscode" | "none" (default)
     bootstrap_default: bool = False     # if true, --bootstrap is implicit on create/warm
+    externals: list[ExternalConfig] = field(default_factory=list)
 
 
 def load_config(path: Path | None = None) -> WorkspaceConfig:
@@ -164,6 +233,30 @@ def _parse_config(data: dict[str, Any], root: Path) -> WorkspaceConfig:
             ide_settings=dict(ide_settings) if ide_settings else {},
         ))
 
+    externals_data = data.get("externals", [])
+    if externals_data:
+        # Slot worktrees are laid out flat (worktree-N/<repo name>), so a
+        # repo path with more than one component would land somewhere other
+        # than worktree-N/<that path> — externals' slot-relative link math
+        # (see make_external) assumes every repo sits directly under root.
+        for r in repos:
+            if _repo_path_depth(r.path) > 1:
+                raise ConfigError(
+                    "[[externals]] requires every repo to sit directly under the "
+                    f"workspace root; repo '{r.name}' has path '{r.path}'"
+                )
+
+    externals: list[ExternalConfig] = []
+    seen_ext: set[str] = set()
+    for i, entry in enumerate(externals_data):
+        if not isinstance(entry, dict) or "path" not in entry:
+            raise ConfigError(f"[[externals]] entry {i} missing 'path'")
+        ext = make_external(root, entry["path"], entry.get("name"))
+        if ext.name.casefold() in seen_ext:
+            raise ConfigError(f"Duplicate external name: '{ext.name}'")
+        seen_ext.add(ext.name.casefold())
+        externals.append(ext)
+
     if "max_worktrees" in workspace:
         raise ConfigError(
             "max_worktrees was renamed to `slots` in canopy 3.0 — "
@@ -188,6 +281,7 @@ def _parse_config(data: dict[str, Any], root: Path) -> WorkspaceConfig:
         augments=augments,
         ide=ide_choice,
         bootstrap_default=bootstrap_default,
+        externals=externals,
     )
 
 

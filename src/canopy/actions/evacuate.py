@@ -31,6 +31,7 @@ from typing import Any
 from ..git import repo as git
 from ..workspace.workspace import Workspace
 from .errors import BlockerError
+from .externals import ensure_external_links
 from . import slots as slots_mod
 
 
@@ -99,6 +100,9 @@ def evacuate_repo(
     Returns ``{repo, status, stashed, stash_ref, worktree_path, slot_id,
     target_branch, popped}``. Raises ``BlockerError`` on failure.
     """
+    # Externals checked before any git mutation, so a BlockerError here
+    # leaves the repo untouched.
+    ensure_external_links(workspace)
     stash_ref = stash_for_evacuation(
         workspace, feature_being_evacuated, repo_name, repo_path,
     )
@@ -161,6 +165,9 @@ def fastpath_swap_repo(
     Returns ``{repo, status, stashed, stash_ref, worktree_path, slot_id,
     swapped_in, swapped_out, popped}``.
     """
+    # Externals checked before any git mutation, so a BlockerError here
+    # leaves the repo untouched.
+    ensure_external_links(workspace)
     slot_path = slots_mod.slot_worktree_path(workspace, slot_id, repo_name)
     if not (slot_path / ".git").exists():
         raise BlockerError(

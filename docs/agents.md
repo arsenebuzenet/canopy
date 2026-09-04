@@ -30,7 +30,7 @@ The MCP server makes the tools *available*; the hooks make wrong-path work *impo
 | **Recovery** | `doctor`, `drift` | integrity check + repair; branch-drift detection |
 | **WIP + workable slots** | `stash_save_feature`, `stash_pop_feature`, `worktree_bootstrap` | feature-tagged stash save/pop; make a warm slot workable (env/deps/hooks/IDE) |
 
-`context` is **the** registry read — feature ↔ repo ↔ branch ↔ path ↔ state — with a **local tier** (instant) and a **remote tier** (PR/CI overlay, opt-in). It supersedes the pre-4.0 `workspace_status` / `workspace_context` / `feature_list` / `feature_status` / `slots` reads.
+`context` is **the** registry read — feature ↔ repo ↔ branch ↔ path ↔ state — with a **local tier** (instant) and a **remote tier** (PR/CI overlay, opt-in). It supersedes the pre-4.0 `workspace_status` / `workspace_context` / `feature_list` / `feature_status` / `slots` reads. `context`'s `externals` lists the workspace's unmanaged sibling directories (`[[externals]]`) and whether their slot-side link is `ok`; treat them as read-only.
 
 > **What is NOT an agent tool.** The management operations — `triage`, `review`, `ship`, `resume`, `conflicts`, `bot-status`, historian, PR/issue/comment reads, thread resolve/reply — are **not** MCP tools. They live in `canopy/management/` and are reached by the human or dashboard via `canopy <cmd> --json`. Do not wire the agent to call them; they don't exist on the MCP surface. If you find yourself wanting `feature_resume` or `github_get_pr_comments`, use `context` (with the remote overlay) and the reads it returns instead.
 
@@ -174,7 +174,7 @@ When you see a `BlockerError`, read `fix_actions[0]` and decide whether to follo
 
 ### Recovery: when canopy itself looks broken
 
-If a canopy call returns an *unexpected* error — a `KeyError` from a state read, "feature not found" for one you just created, a path that should exist but doesn't — call **`doctor`** first. It runs a 21-code integrity check across state-file drift and install-staleness (including slot-state checks: `slot_dir_orphan`, `slot_entry_orphan`, `slot_branch_mismatch`, `slot_detached_head`, …), returning each issue with `code`, `severity`, `expected`, `actual`, and an `auto_fixable` flag.
+If a canopy call returns an *unexpected* error — a `KeyError` from a state read, "feature not found" for one you just created, a path that should exist but doesn't — call **`doctor`** first. It runs a 25-code integrity check across state-file drift and install-staleness (including slot-state checks: `slot_dir_orphan`, `slot_entry_orphan`, `slot_branch_mismatch`, `slot_detached_head`, …), returning each issue with `code`, `severity`, `expected`, `actual`, and an `auto_fixable` flag.
 
 1. `doctor()` → read the issues. If `summary.errors == 0`, it's not a state problem; investigate the original error normally.
 2. Errors present and mostly `auto_fixable: true` → `doctor(fix=True)`. Report `fixed` / `skipped` to the human.

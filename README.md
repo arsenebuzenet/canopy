@@ -58,7 +58,7 @@ switch("auth-flow")             # promote it into trunk — the only place code 
 run("api", "pytest -q")         # path-safe shell exec; canopy resolves the cwd
 commit(message="…")             # feature-scoped, multi-repo commit
 push()                          # push across every repo in the feature's lane
-doctor()                        # 21-code integrity check + repair when something feels off
+doctor()                        # 25-code integrity check + repair when something feels off
 ```
 
 Everything the agent names is semantic (`feature`, `repo`, alias); canopy owns the paths. When a precondition fails, the tool returns a structured `BlockerError(code, what, expected, actual, fix_actions)` — each fix carrying `safe: bool` — so the agent recovers from a typed payload instead of parsing stderr.
@@ -71,7 +71,7 @@ Everything the agent names is semantic (`feature`, `repo`, alias); canopy owns t
 | **Registry** | `context`, `start`, `join` | The single-read workspace map (feature ↔ repo ↔ branch ↔ path ↔ state, local + remote PR/CI tier); lazy feature start; register a repo into the active feature. |
 | **Focus / slots** | `switch`, `reclaim` | Promote a feature into trunk (the run target); free a warm slot whose PR merged. |
 | **Safe git ops** | `run`, `commit`, `push`, `preflight` | Path-safe shell exec; feature-scoped multi-repo commit; push across the lane; pre-commit gate. |
-| **Recovery** | `doctor`, `drift` | 21-code integrity check + repair; branch-drift detection across repos. |
+| **Recovery** | `doctor`, `drift` | 25-code integrity check + repair; branch-drift detection across repos. |
 | **WIP + workable slots** | `stash_save_feature`, `stash_pop_feature`, `worktree_bootstrap` | Feature-tagged stash save/pop; bootstrap a warm slot (env / deps / hooks / IDE). |
 
 `context` is *the* registry read — it supersedes the old `workspace_status` / `workspace_context` / `feature_list` / `feature_status` / `slots` tools with a local (instant) tier and a remote (PR/CI overlay) tier. Full reference: [docs/mcp.md](docs/mcp.md).

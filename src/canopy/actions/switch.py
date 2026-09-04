@@ -42,6 +42,8 @@ _PRE_MUTATION_CODES = frozenset({
     "unknown_slot",
     "evict_to_occupied",
     "warm_worktree_dirty_on_promote",
+    "external_target_missing",
+    "external_link_shadowed",
 })
 
 

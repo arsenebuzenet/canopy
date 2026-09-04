@@ -4,6 +4,21 @@ Tracks the Python side (CLI + MCP server). The VSCode extension has its own [vsc
 
 Versions follow semver. Pre-1.0 — minor bumps may add features or break behavior; the README is the source-of-truth contract.
 
+## 4.0.0-rc3 — 2026-09-04 (Externals)
+
+- `[[externals]]` in canopy.toml declares unmanaged sibling directories
+  (`path = "../lib"`). canopy links them next to the slot dirs (junction on
+  Windows, symlink elsewhere) so relative references from a repo resolve the
+  same way inside a warm slot as from the canonical checkout. Links are
+  planted by `slot load` / `switch` and repaired by
+  `doctor --fix-category externals`; `context` reports each external's state.
+- `doctor`: new `externals` category (`external_link_missing`,
+  `external_link_stale`, `external_link_shadowed`, `external_target_missing`) —
+  25 codes across 12 categories.
+- `doctor` no longer treats a directory link under `.canopy/worktrees/` as an
+  orphan feature dir, and `--fix` refuses to delete through one. Previously a
+  junction there could have had its real target directories removed.
+
 ## 4.0.0-rc2 — 2026-09-03 (Native Windows support)
 
 - Native Windows support: a `compat` platform seam (locks, shell dispatch,
