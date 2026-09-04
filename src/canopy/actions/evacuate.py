@@ -165,6 +165,9 @@ def fastpath_swap_repo(
     Returns ``{repo, status, stashed, stash_ref, worktree_path, slot_id,
     swapped_in, swapped_out, popped}``.
     """
+    # Externals checked before any git mutation, so a BlockerError here
+    # leaves the repo untouched.
+    ensure_external_links(workspace)
     slot_path = slots_mod.slot_worktree_path(workspace, slot_id, repo_name)
     if not (slot_path / ".git").exists():
         raise BlockerError(

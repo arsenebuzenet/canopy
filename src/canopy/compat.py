@@ -198,6 +198,8 @@ if IS_WINDOWS:
         return getattr(st, "st_reparse_tag", 0) in _REPARSE_TAGS
 
     def make_dir_link(link: Path | str, target: Path | str) -> None:
+        # Private CPython API (CPython's own test suite relies on it too); no
+        # public equivalent short of shelling out to `mklink /J`.
         _winapi.CreateJunction(str(target), str(link))
 
     def read_dir_link(link: Path | str) -> Path:
@@ -212,7 +214,7 @@ if IS_WINDOWS:
 else:
 
     def is_dir_link(path: Path | str) -> bool:
-        """True for a symlink whose target is (or was) a directory; False otherwise."""
+        """True for a symlink (of any kind); False otherwise or for a missing path."""
         return os.path.islink(path)
 
     def make_dir_link(link: Path | str, target: Path | str) -> None:

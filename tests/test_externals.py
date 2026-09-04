@@ -45,6 +45,22 @@ def test_make_external_rejects_climbing_past_dot_canopy(tmp_path):
         make_external(tmp_path / "a" / "b" / "ws", "../../../lib")
 
 
+def test_make_external_rejects_worktrees_root(tmp_path):
+    with pytest.raises(ConfigError, match="climbs too far"):
+        make_external(tmp_path / "ws", "..")
+
+
+def test_make_external_rejects_dot_canopy(tmp_path):
+    with pytest.raises(ConfigError, match="climbs too far"):
+        make_external(tmp_path / "ws", "../..")
+
+
+def test_make_external_rejects_absolute_path(tmp_path):
+    abs_path = str(tmp_path / "lib")
+    with pytest.raises(ConfigError, match="must be relative"):
+        make_external(tmp_path / "ws", abs_path)
+
+
 def test_load_config_parses_externals(tmp_path):
     root = tmp_path / "ws"
     root.mkdir()
@@ -114,6 +130,44 @@ path = "../foo"
 """, encoding="utf-8")
     with pytest.raises(ConfigError, match="Duplicate external name"):
         load_config(root)
+
+
+def test_load_config_rejects_externals_with_nested_repo_path(tmp_path):
+    root = tmp_path / "ws"
+    root.mkdir()
+    (root / "canopy.toml").write_text("""
+[workspace]
+name = "t"
+
+[[repos]]
+name = "api"
+path = "services/api"
+
+[[externals]]
+path = "../lib"
+""", encoding="utf-8")
+    with pytest.raises(ConfigError, match="directly under the workspace root"):
+        load_config(root)
+
+
+def test_load_config_accepts_dot_slash_repo_path_with_externals(tmp_path):
+    root = tmp_path / "ws"
+    root.mkdir()
+    (root / "repo-a").mkdir()
+    (root / "canopy.toml").write_text("""
+[workspace]
+name = "t"
+
+[[repos]]
+name = "repo-a"
+path = "./repo-a"
+
+[[externals]]
+path = "../lib"
+""", encoding="utf-8")
+    cfg = load_config(root)
+    assert cfg.repos[0].path == "./repo-a"
+    assert [e.name for e in cfg.externals] == ["lib"]
 
 
 def test_load_config_rejects_external_without_path(tmp_path):

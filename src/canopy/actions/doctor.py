@@ -235,6 +235,8 @@ def check_worktree_orphan(workspace: Workspace) -> list[Issue]:
     wt_root = workspace.config.root / ".canopy" / "worktrees"
     if not wt_root.exists():
         return []
+    if compat.is_dir_link(wt_root):
+        return []
     features = _load_features_raw(workspace.config.root)
     issues: list[Issue] = []
     for feat_dir in sorted(wt_root.iterdir()):

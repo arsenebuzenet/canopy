@@ -976,6 +976,24 @@ def test_worktree_orphan_skips_dir_links(workspace_with_feature):
     assert check_worktree_orphan(ws) == []
 
 
+def test_worktree_orphan_skips_nested_dir_link(workspace_with_feature):
+    """A real feature dir containing a nested dir link must not be reported.
+
+    A real non-link dir alongside the nested link would still be reported —
+    that path isn't exercised here.
+    """
+    from canopy import compat
+    _write_features(workspace_with_feature, {})
+    real = workspace_with_feature.parent / "legacy-pkg-real"
+    real.mkdir()
+    (real / "keep.txt").write_text("keep", encoding="utf-8")
+    legacy_dir = workspace_with_feature / ".canopy" / "worktrees" / "legacy"
+    legacy_dir.mkdir(parents=True)
+    compat.make_dir_link(legacy_dir / "pkg", real)
+    ws = _make_workspace(workspace_with_feature)
+    assert check_worktree_orphan(ws) == []
+
+
 def test_repair_worktree_orphan_refuses_to_delete_through_link(workspace_with_feature):
     _write_features(workspace_with_feature, {})
     real, link = _plant_link(workspace_with_feature)
