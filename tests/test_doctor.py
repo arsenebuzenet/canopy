@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -54,6 +55,19 @@ from canopy.workspace.workspace import Workspace
 # ── helpers ──────────────────────────────────────────────────────────────
 
 
+def _fake_canopy(tmp_path, version: str) -> Path:
+    """A runnable stand-in for `canopy --version` on the current platform."""
+    from canopy.compat import IS_WINDOWS
+    if IS_WINDOWS:
+        fake = tmp_path / "canopy.cmd"
+        fake.write_text(f"@echo canopy {version}\r\n", encoding="utf-8")
+    else:
+        fake = tmp_path / "canopy"
+        fake.write_text(f"#!/bin/sh\necho 'canopy {version}'\n", encoding="utf-8")
+        fake.chmod(0o755)
+    return fake
+
+
 def _make_workspace(workspace_dir, repos=("repo-a", "repo-b")) -> Workspace:
     config = WorkspaceConfig(
         name="test",
@@ -70,7 +84,7 @@ def _write_features(workspace_dir, features: dict) -> Path:
     canopy = workspace_dir / ".canopy"
     canopy.mkdir(exist_ok=True)
     path = canopy / "features.json"
-    path.write_text(json.dumps(features))
+    path.write_text(json.dumps(features), encoding="utf-8")
     return path
 
 
@@ -78,7 +92,7 @@ def _write_active(workspace_dir, **fields) -> Path:
     state_dir = workspace_dir / ".canopy" / "state"
     state_dir.mkdir(parents=True, exist_ok=True)
     path = state_dir / "active_feature.json"
-    path.write_text(json.dumps(fields))
+    path.write_text(json.dumps(fields), encoding="utf-8")
     return path
 
 
@@ -96,7 +110,7 @@ def _write_heads(workspace_dir, **per_repo) -> Path:
             "ts": entry.get("ts", now),
         }
     path = state_dir / "heads.json"
-    path.write_text(json.dumps(state))
+    path.write_text(json.dumps(state), encoding="utf-8")
     return path
 
 
@@ -206,7 +220,7 @@ def test_repair_active_feature_path_missing_re_resolves(workspace_with_feature):
     assert result.success
     # After repair, path should be the real repo-a path
     af = json.loads((workspace_with_feature / ".canopy" / "state" /
-                     "active_feature.json").read_text())
+                     "active_feature.json").read_text(encoding="utf-8"))
     assert af["per_repo_paths"]["repo-a"] == str(workspace_with_feature / "repo-a")
 
 
@@ -255,7 +269,7 @@ def test_repair_worktree_missing_clears_entry(workspace_with_feature):
     issues = check_worktree_missing(ws)
     result = repair_worktree_missing(ws, issues[0])
     assert result.success
-    data = json.loads((workspace_with_feature / ".canopy" / "features.json").read_text())
+    data = json.loads((workspace_with_feature / ".canopy" / "features.json").read_text(encoding="utf-8"))
     assert "worktree_paths" not in data["auth-flow"]
 
 
@@ -287,13 +301,14 @@ def test_repair_hook_missing_installs(workspace_with_feature):
     assert issues[0].repo not in {i.repo for i in remaining}
 
 
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="no execute bit on NTFS")
 def test_hook_chained_unsafe_when_chained_not_executable(workspace_with_feature):
     """Install hook with a chained user hook, then strip exec bit."""
     repo = workspace_with_feature / "repo-a"
     hooks_dir = canopy_hooks.resolve_hooks_dir(repo)
     hooks_dir.mkdir(parents=True, exist_ok=True)
     user_hook = hooks_dir / "post-checkout"
-    user_hook.write_text("#!/bin/sh\necho user-hook\n")
+    user_hook.write_text("#!/bin/sh\necho user-hook\n", encoding="utf-8")
     user_hook.chmod(0o755)
     canopy_hooks.install_hook(repo, "repo-a", workspace_with_feature)
     chained = hooks_dir / "post-checkout.canopy-chained"
@@ -325,7 +340,7 @@ def test_preflight_stale_when_head_moved(workspace_with_feature):
             "head_sha_per_repo": {"repo-a": "deadbeef", "repo-b": "deadbeef"},
             "summary": "",
         }
-    }))
+    }), encoding="utf-8")
     ws = _make_workspace(workspace_with_feature)
     issues = check_preflight_stale(ws)
     assert len(issues) == 1
@@ -338,13 +353,13 @@ def test_repair_preflight_stale_drops_entry(workspace_with_feature):
     state_path.write_text(json.dumps({
         "auth-flow": {"passed": True, "head_sha_per_repo": {"repo-a": "deadbeef"}},
         "other": {"passed": True, "head_sha_per_repo": {}},
-    }))
+    }), encoding="utf-8")
     ws = _make_workspace(workspace_with_feature)
     issue = Issue(code="preflight_stale", severity="info", what="",
                    feature="auth-flow", auto_fixable=True)
     result = repair_preflight_stale(ws, issue)
     assert result.success
-    state = json.loads(state_path.read_text())
+    state = json.loads(state_path.read_text(encoding="utf-8"))
     assert "auth-flow" not in state
     assert "other" in state
 
@@ -405,9 +420,7 @@ def test_check_cli_stale_when_binary_missing(workspace_with_feature):
 
 def test_check_cli_stale_when_older(workspace_with_feature, tmp_path):
     ws = _make_workspace(workspace_with_feature)
-    fake = tmp_path / "canopy"
-    fake.write_text("#!/bin/sh\necho 'canopy 0.0.1'\n")
-    fake.chmod(0o755)
+    fake = _fake_canopy(tmp_path, "0.0.1")
     with patch("canopy.actions.doctor.shutil.which", return_value=str(fake)):
         issues = check_cli_stale(ws)
     assert len(issues) == 1
@@ -417,9 +430,7 @@ def test_check_cli_stale_when_older(workspace_with_feature, tmp_path):
 def test_check_cli_stale_when_current(workspace_with_feature, tmp_path):
     from canopy import __version__
     ws = _make_workspace(workspace_with_feature)
-    fake = tmp_path / "canopy"
-    fake.write_text(f"#!/bin/sh\necho 'canopy {__version__}'\n")
-    fake.chmod(0o755)
+    fake = _fake_canopy(tmp_path, __version__)
     with patch("canopy.actions.doctor.shutil.which", return_value=str(fake)):
         assert check_cli_stale(ws) == []
 
@@ -445,7 +456,7 @@ def test_check_mcp_missing_in_workspace_wrong_root(workspace_with_feature):
             "command": "canopy-mcp",
             "env": {"CANOPY_ROOT": "/different/root"},
         }}
-    }))
+    }), encoding="utf-8")
     ws = _make_workspace(workspace_with_feature)
     issues = check_mcp_missing_in_workspace(ws)
     assert len(issues) == 1
@@ -458,7 +469,7 @@ def test_check_mcp_missing_in_workspace_aligned(workspace_with_feature):
             "command": "canopy-mcp",
             "env": {"CANOPY_ROOT": str(workspace_with_feature.resolve())},
         }}
-    }))
+    }), encoding="utf-8")
     ws = _make_workspace(workspace_with_feature)
     assert check_mcp_missing_in_workspace(ws) == []
 
@@ -474,7 +485,7 @@ def test_check_skill_stale_byte_mismatch(workspace_with_feature, tmp_path, monke
     monkeypatch.setenv("HOME", str(tmp_path))
     target = tmp_path / ".claude" / "skills" / "using-canopy" / "SKILL.md"
     target.parent.mkdir(parents=True)
-    target.write_text("name: using-canopy\nold content drifted\n")
+    target.write_text("name: using-canopy\nold content drifted\n", encoding="utf-8")
     ws = _make_workspace(workspace_with_feature)
     issues = check_skill_stale(ws)
     assert len(issues) == 1
@@ -499,6 +510,7 @@ def _ps_stub(rows: list[tuple[int, int, str]]):
     return SimpleNamespace(returncode=0, stdout=text, stderr="")
 
 
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="ps-based orphan detection is a no-op on windows")
 def test_check_mcp_orphans_detects_ppid_1(workspace_with_feature, monkeypatch):
     """A canopy-mcp process whose parent died (PPID=1) is an orphan."""
     rows = [
@@ -532,6 +544,7 @@ def test_check_mcp_orphans_clean_when_no_orphans(workspace_with_feature, monkeyp
     assert check_mcp_orphans(ws) == []
 
 
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="ps-based orphan detection is a no-op on windows")
 def test_check_mcp_orphans_skips_self_and_parent(workspace_with_feature, monkeypatch):
     """Doctor invoked from inside an MCP context shouldn't flag itself."""
     import os
@@ -743,7 +756,7 @@ def test_e2e_corrupt_then_repair_then_clean(workspace_with_feature):
         "auth-flow": {"passed": True,
                        "head_sha_per_repo": {"repo-a": "deadbeef"},
                        "summary": ""},
-    }))
+    }), encoding="utf-8")
 
     ws = _make_workspace(workspace_with_feature)
     initial = doctor(ws)
@@ -928,7 +941,7 @@ def test_doctor_slot_repo_worktree_missing_not_autofixable_when_branch_gone(
     # even after its branch is deleted (real features aren't branch-derived).
     (root / ".canopy" / "features.json").write_text(_json.dumps({
         "Y": {"repos": ["repo-a", "repo-b"], "status": "active"},
-    }))
+    }), encoding="utf-8")
     _orphan_one_repo_worktree(root, "worktree-1", "repo-a")
     # Delete branch Y in repo-a so recreation is impossible.
     subprocess.run(["git", "branch", "-D", "Y"], cwd=root / "repo-a", check=True)

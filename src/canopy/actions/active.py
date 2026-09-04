@@ -24,7 +24,7 @@ def get_active(workspace: Workspace) -> str | None:
     if not p.exists():
         return None
     try:
-        data = json.loads(p.read_text())
+        data = json.loads(p.read_text(encoding="utf-8"))
         return data.get("active_feature") if isinstance(data, dict) else None
     except (ValueError, OSError):
         return None
@@ -34,7 +34,7 @@ def set_active(workspace: Workspace, feature: str) -> None:
     p = _path(workspace)
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(json.dumps({"active_feature": feature}, indent=2) + "\n")
+    tmp.write_text(json.dumps({"active_feature": feature}, indent=2) + "\n", encoding="utf-8")
     os.replace(tmp, p)
 
 

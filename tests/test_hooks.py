@@ -1,7 +1,10 @@
 """Tests for canopy.git.hooks (install/uninstall, state file, worktrees)."""
+import importlib.util
 import json
 import os
 import subprocess
+import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -11,10 +14,43 @@ from canopy.git.hooks import (
     read_heads_state, resolve_hooks_dir,
 )
 
+# The hook template is standalone (copied into repos' .git/hooks/, so it
+# cannot import canopy.compat) and defines its own `_lock`. Load it as a
+# module under a name other than "__main__" so its `if __name__ ==
+# "__main__":` block doesn't run.
+_TEMPLATE_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "src" / "canopy" / "git" / "templates" / "post-checkout.py"
+)
+
+
+def _load_hook_template():
+    spec = importlib.util.spec_from_file_location("post_checkout_hook_template", _TEMPLATE_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_CHILD_LOCK_HOLDER = f"""
+import importlib.util
+import sys
+import time
+
+spec = importlib.util.spec_from_file_location("post_checkout_hook_template", r"{_TEMPLATE_PATH}")
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+
+path = sys.argv[1]
+with open(path, "r+", encoding="utf-8") as f:
+    m._lock(f.fileno())
+    print("locked", flush=True)
+    time.sleep(1.5)
+"""
+
 
 def _git(args, cwd):
     subprocess.run(
-        ["git"] + args, cwd=cwd, check=True, capture_output=True, text=True,
+        ["git"] + args, cwd=cwd, check=True, capture_output=True, text=True, encoding="utf-8",
         env={**os.environ, "GIT_AUTHOR_NAME": "T", "GIT_AUTHOR_EMAIL": "t@t.com",
              "GIT_COMMITTER_NAME": "T", "GIT_COMMITTER_EMAIL": "t@t.com"},
     )
@@ -28,7 +64,7 @@ def workspace(tmp_path):
     api = root / "repo-a"
     api.mkdir()
     _git(["init", "-b", "main"], cwd=api)
-    (api / "README").write_text("x\n")
+    (api / "README").write_text("x\n", encoding="utf-8")
     _git(["add", "."], cwd=api)
     _git(["commit", "-m", "init"], cwd=api)
     return root, api
@@ -40,10 +76,10 @@ def test_install_creates_hook(workspace):
     assert result.action == "installed"
     hook = api / ".git" / "hooks" / "post-checkout"
     assert hook.exists() and os.access(hook, os.X_OK)
-    content = hook.read_text()
+    content = hook.read_text(encoding="utf-8")
     assert "__CANOPY_HOOK_MARKER__" in content
     assert '"repo-a"' in content
-    assert str(root.resolve()) in content
+    assert json.dumps(str(root.resolve())) in content
 
 
 def test_reinstall_overwrites_existing_canopy_hook(workspace):
@@ -58,28 +94,28 @@ def test_install_chains_existing_user_hook(workspace):
     hook_dir = api / ".git" / "hooks"
     hook_dir.mkdir(exist_ok=True)
     user_hook = hook_dir / "post-checkout"
-    user_hook.write_text("#!/bin/sh\necho user hook\n")
+    user_hook.write_text("#!/bin/sh\necho user hook\n", encoding="utf-8")
     user_hook.chmod(0o755)
 
     result = install_hook(api, "repo-a", root)
     assert result.action == "chained_existing"
     chained = hook_dir / "post-checkout.canopy-chained"
     assert chained.exists()
-    assert "user hook" in chained.read_text()
+    assert "user hook" in chained.read_text(encoding="utf-8")
 
 
 def test_uninstall_restores_chained_hook(workspace):
     root, api = workspace
     user_hook = api / ".git" / "hooks" / "post-checkout"
     user_hook.parent.mkdir(exist_ok=True)
-    user_hook.write_text("#!/bin/sh\necho user\n")
+    user_hook.write_text("#!/bin/sh\necho user\n", encoding="utf-8")
     user_hook.chmod(0o755)
 
     install_hook(api, "repo-a", root)
     result = uninstall_hook(api, "repo-a")
     assert result.action == "uninstalled_and_restored"
     assert user_hook.exists()
-    assert "user" in user_hook.read_text()
+    assert "user" in user_hook.read_text(encoding="utf-8")
 
 
 def test_uninstall_removes_canopy_hook(workspace):
@@ -94,7 +130,7 @@ def test_uninstall_skips_foreign_hook(workspace):
     root, api = workspace
     foreign = api / ".git" / "hooks" / "post-checkout"
     foreign.parent.mkdir(exist_ok=True)
-    foreign.write_text("#!/bin/sh\nexit 0\n")
+    foreign.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     foreign.chmod(0o755)
 
     result = uninstall_hook(api, "repo-a")
@@ -118,7 +154,7 @@ def test_hook_skips_file_checkout(workspace):
     root, api = workspace
     install_hook(api, "repo-a", root)
     # File checkout (is_branch_checkout=0); state file should NOT be created.
-    (api / "README").write_text("modified\n")
+    (api / "README").write_text("modified\n", encoding="utf-8")
     _git(["checkout", "--", "README"], cwd=api)
 
     state = read_heads_state(root)
@@ -130,7 +166,9 @@ def test_hook_chains_to_user_hook_after_recording(workspace):
     user_marker = api / ".git" / "hooks" / "USER_HOOK_RAN"
     user_hook = api / ".git" / "hooks" / "post-checkout"
     user_hook.parent.mkdir(exist_ok=True)
-    user_hook.write_text(f"#!/bin/sh\ntouch {user_marker}\n")
+    # Forward slashes: this file is executed by sh (Git Bash's on Windows),
+    # which mishandles a native Windows backslash path.
+    user_hook.write_text(f"#!/bin/sh\ntouch {user_marker.as_posix()}\n", encoding="utf-8")
     user_hook.chmod(0o755)
 
     install_hook(api, "repo-a", root)
@@ -146,7 +184,7 @@ def test_hook_writes_per_repo_entries(workspace):
     ui = root / "repo-b"
     ui.mkdir()
     _git(["init", "-b", "main"], cwd=ui)
-    (ui / "x").write_text("x\n")
+    (ui / "x").write_text("x\n", encoding="utf-8")
     _git(["add", "."], cwd=ui)
     _git(["commit", "-m", "init"], cwd=ui)
 
@@ -225,3 +263,34 @@ def test_hook_installed_in_main_fires_from_worktree(workspace):
 
 def test_read_heads_state_missing_file(tmp_path):
     assert read_heads_state(tmp_path) == {}
+
+
+def test_template_lock_returns_immediately_when_uncontended(tmp_path):
+    module = _load_hook_template()
+    p = tmp_path / "heads.json.lock"
+    with open(p, "w", encoding="utf-8") as f:
+        module._lock(f.fileno())
+
+
+def test_template_lock_blocks_until_holder_releases(tmp_path):
+    """The template's inline `_lock` must poll like flock(LOCK_EX), not give
+    up after ~10s the way a bare msvcrt.locking(LK_LOCK, 1) would."""
+    p = tmp_path / "heads.json.lock"
+    p.write_text("x", encoding="utf-8")
+    child = subprocess.Popen(
+        [sys.executable, "-c", _CHILD_LOCK_HOLDER, str(p)],
+        stdout=subprocess.PIPE, text=True, encoding="utf-8",
+    )
+    try:
+        line = child.stdout.readline()
+        assert line.strip() == "locked"
+
+        module = _load_hook_template()
+        start = time.monotonic()
+        with open(p, "r+", encoding="utf-8") as f:
+            module._lock(f.fileno())
+        elapsed = time.monotonic() - start
+
+        assert elapsed >= 1.0
+    finally:
+        assert child.wait(timeout=5) == 0

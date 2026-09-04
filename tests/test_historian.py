@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -198,7 +201,7 @@ def test_render_file_written_alongside_store(tmp_path):
     record_decision(tmp_path, "feat-1", title="t")
     assert store_path(tmp_path, "feat-1").exists()
     assert render_path(tmp_path, "feat-1").exists()
-    md = render_path(tmp_path, "feat-1").read_text()
+    md = render_path(tmp_path, "feat-1").read_text(encoding="utf-8")
     assert "# Feature: feat-1" in md
 
 
@@ -320,3 +323,45 @@ def test_format_for_agent_since_boundary_exact_match(tmp_path):
     assert "at boundary" not in md
     # After should be included.
     assert "after boundary" in md
+
+
+# ── Cross-process locking ───────────────────────────────────────────────
+
+_CHILD_APPENDER = """
+import sys
+import time
+from pathlib import Path
+
+from canopy.management import historian
+
+root, feature = Path(sys.argv[1]), sys.argv[2]
+with historian._locked_append(historian.store_path(root, feature)) as f:
+    f.write('{"kind": "event", "summary": "child"}' + chr(10))
+    f.flush()
+    print("locked", flush=True)
+    time.sleep(1.5)
+"""
+
+
+def test_append_lock_does_not_shut_readers_out(tmp_path):
+    """The lock belongs on a sidecar, not on the data file. Windows byte-range
+    locks are mandatory, so locking the .jsonl makes every unlocked reader
+    (_load_entries, canopy resume, canopy historian) raise PermissionError —
+    including the _refresh_render that follows every append."""
+    path = store_path(tmp_path, "feat-lock")
+    child = subprocess.Popen(
+        [sys.executable, "-c", _CHILD_APPENDER, str(tmp_path), "feat-lock"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+    )
+    try:
+        if child.stdout.readline().strip() != "locked":
+            pytest.fail(f"child never locked: {child.communicate()[1]}")
+        assert open(path, encoding="utf-8").read()      # must not raise
+        started = time.monotonic()
+        with historian._locked_append(path) as f:
+            f.write('{"kind": "event", "summary": "parent"}' + chr(10))
+        waited = time.monotonic() - started
+    finally:
+        child.wait(timeout=30)
+    assert waited >= 1.0, "the parent append did not queue behind the child"
+    assert {e["summary"] for e in read(tmp_path, "feat-lock")} == {"child", "parent"}

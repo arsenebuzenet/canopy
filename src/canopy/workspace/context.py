@@ -146,7 +146,7 @@ def _slot_to_feature(workspace_root: Path, slot_id: str) -> str | None:
     if not p.exists():
         return None
     try:
-        data = json.loads(p.read_text())
+        data = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
     entry = (data.get("slots") or {}).get(slot_id)

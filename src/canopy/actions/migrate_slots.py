@@ -81,7 +81,7 @@ def migrate(workspace_root: Path) -> dict[str, Any]:
     old: dict[str, Any] = {}
     if old_active.exists():
         try:
-            old = json.loads(old_active.read_text())
+            old = json.loads(old_active.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             old = {}
 
@@ -235,7 +235,7 @@ def migrate(workspace_root: Path) -> dict[str, Any]:
         )
 
     # 4. Rewrite canopy.toml: max_worktrees → slots
-    text = toml_path.read_text()
+    text = toml_path.read_text(encoding="utf-8")
     new_text, n = re.subn(
         r"(?m)^(\s*)max_worktrees(\s*=\s*\d+)\s*$",
         r"\1slots\2",
@@ -248,7 +248,7 @@ def migrate(workspace_root: Path) -> dict[str, Any]:
             r"\1slots = 2\n",
             text, count=1,
         )
-    toml_path.write_text(new_text)
+    toml_path.write_text(new_text, encoding="utf-8")
 
     # 5. Build slots.json
     canonical_feature = old.get("feature")
@@ -290,7 +290,7 @@ def migrate(workspace_root: Path) -> dict[str, Any]:
     state_path = root / ".canopy/state/slots.json"
     state_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = state_path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(state.to_dict(), indent=2))
+    tmp.write_text(json.dumps(state.to_dict(), indent=2), encoding="utf-8")
     tmp.replace(state_path)
 
     # 6. Delete active_feature.json

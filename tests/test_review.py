@@ -39,7 +39,7 @@ def _git(args, cwd):
         "GIT_COMMITTER_EMAIL": "test@test.com",
     }
     result = subprocess.run(
-        ["git"] + args, capture_output=True, text=True, cwd=cwd, env=env,
+        ["git"] + args, capture_output=True, text=True, encoding="utf-8", cwd=cwd, env=env,
     )
     if result.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {result.stderr}")
@@ -183,14 +183,14 @@ class TestExtractPrs:
 
 class TestPrecommitDetection:
     def test_detect_framework(self, tmp_path):
-        (tmp_path / ".pre-commit-config.yaml").write_text("repos: []\n")
+        (tmp_path / ".pre-commit-config.yaml").write_text("repos: []\n", encoding="utf-8")
         assert detect_precommit(tmp_path) == "framework"
 
     def test_detect_git_hook(self, tmp_path):
         hooks_dir = tmp_path / ".git" / "hooks"
         hooks_dir.mkdir(parents=True)
         hook = hooks_dir / "pre-commit"
-        hook.write_text("#!/bin/sh\nexit 0\n")
+        hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         hook.chmod(0o755)
         assert detect_precommit(tmp_path) == "git_hook"
 
@@ -205,7 +205,7 @@ class TestPrecommitDetection:
         hooks_dir = api / ".git" / "hooks"
         hooks_dir.mkdir(parents=True, exist_ok=True)
         hook = hooks_dir / "pre-commit"
-        hook.write_text("#!/bin/sh\nexit 0\n")
+        hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         hook.chmod(0o755)
 
         # Create a worktree
@@ -232,14 +232,14 @@ class TestRunPrecommit:
         _git(["init", "-b", "main"], cwd=tmp_path)
         _git(["config", "user.email", "test@test.com"], cwd=tmp_path)
         _git(["config", "user.name", "Test"], cwd=tmp_path)
-        (tmp_path / "file.txt").write_text("hello")
+        (tmp_path / "file.txt").write_text("hello", encoding="utf-8")
         _git(["add", "."], cwd=tmp_path)
         _git(["commit", "-m", "init"], cwd=tmp_path)
 
         hooks_dir = tmp_path / ".git" / "hooks"
         hooks_dir.mkdir(exist_ok=True)
         hook = hooks_dir / "pre-commit"
-        hook.write_text("#!/bin/sh\nexit 0\n")
+        hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         hook.chmod(0o755)
 
         result = run_precommit(tmp_path)
@@ -250,14 +250,14 @@ class TestRunPrecommit:
         _git(["init", "-b", "main"], cwd=tmp_path)
         _git(["config", "user.email", "test@test.com"], cwd=tmp_path)
         _git(["config", "user.name", "Test"], cwd=tmp_path)
-        (tmp_path / "file.txt").write_text("hello")
+        (tmp_path / "file.txt").write_text("hello", encoding="utf-8")
         _git(["add", "."], cwd=tmp_path)
         _git(["commit", "-m", "init"], cwd=tmp_path)
 
         hooks_dir = tmp_path / ".git" / "hooks"
         hooks_dir.mkdir(exist_ok=True)
         hook = hooks_dir / "pre-commit"
-        hook.write_text("#!/bin/sh\necho 'Hook failed'\nexit 1\n")
+        hook.write_text("#!/bin/sh\necho 'Hook failed'\nexit 1\n", encoding="utf-8")
         hook.chmod(0o755)
 
         result = run_precommit(tmp_path)
@@ -282,7 +282,7 @@ class TestGitHubConfig:
                 "args": ["-y", "@modelcontextprotocol/server-github"],
                 "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_test"},
             }
-        }))
+        }), encoding="utf-8")
         assert is_github_configured(tmp_path) is True
 
 
@@ -325,7 +325,7 @@ class TestReviewPrep:
 
         # Make changes in a worktree
         wt_path = canopy_toml / ".canopy" / "worktrees" / slot_id / "repo-a"
-        (wt_path / "new_file.py").write_text("# new file\n")
+        (wt_path / "new_file.py").write_text("# new file\n", encoding="utf-8")
 
         result = review_ops.review_prep(ws, "prep-test", message="fix: address review")
 
@@ -397,12 +397,12 @@ class TestReviewPrep:
         hooks_dir = api_main / ".git" / "hooks"
         hooks_dir.mkdir(parents=True, exist_ok=True)
         hook = hooks_dir / "pre-commit"
-        hook.write_text("#!/bin/sh\nexit 0\n")
+        hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         hook.chmod(0o755)
 
         # Make a change
         wt_path = canopy_toml / ".canopy" / "worktrees" / slot_id / "repo-a"
-        (wt_path / "touched.py").write_text("# touched\n")
+        (wt_path / "touched.py").write_text("# touched\n", encoding="utf-8")
 
         result = review_ops.review_prep(ws, "hook-test")
 

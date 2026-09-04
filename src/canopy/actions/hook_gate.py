@@ -19,6 +19,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .. import compat
+
 _GIT_WORD = _re.compile(r"\bgit\b")
 
 
@@ -170,6 +172,41 @@ class GitSegment:
 
 _UNRESOLVABLE = ("$", "~", "`")   # vars/home/expansion → don't guess
 
+# A drive colon must not open an msys prefix: `D:\a\canopy` sweeps to
+# `D:/a/canopy`, and a lookbehind that allows `:` reads `/a/` as a drive and
+# yields `D:A:/canopy` — a confidently wrong directory, which the fail-open
+# contract exists to prevent.
+_MSYS_DRIVE = _re.compile(r"(?<![\w/:])/([a-zA-Z])/")
+
+# A backslash before whitespace, a quote, `$`, a backtick or another backslash
+# is a shell escape, not a path separator. Sweeping those into `/` corrupts the
+# command: `-m "use \" here"` becomes `-m "use /" here"`, whose quote count is
+# odd, so shlex raises, resolve_segments skips the segment, and the gate lets an
+# unjudged mutation through. Park them through the sweep and hand them back.
+_SHELL_ESCAPE = _re.compile(r"\\([\s\"'$`\\])")
+_PARKED = _re.compile("\x00(\\d+)\x00")   # \x00 is never valid in a command line
+
+
+def normalize_command_paths(command: str) -> str:
+    """On Windows, make the command parseable by ``shlex(posix=True)``.
+
+    Backslash separators would be consumed as escapes, and Git Bash writes
+    ``C:\\x`` as ``/c/x``. Both are rewritten to ``C:/x`` before parsing.
+    On POSIX the command is returned untouched — a backslash there IS an
+    escape and ``/c/`` is an ordinary directory.
+    """
+    if not compat.IS_WINDOWS:
+        return command
+    parked: list[str] = []
+
+    def _park(m: _re.Match[str]) -> str:
+        parked.append(m.group(1))
+        return f"\x00{len(parked) - 1}\x00"
+
+    out = _SHELL_ESCAPE.sub(_park, command).replace("\\", "/")
+    out = _MSYS_DRIVE.sub(lambda m: f"{m.group(1).upper()}:/", out)
+    return _PARKED.sub(lambda m: "\\" + parked[int(m.group(1))], out)
+
 
 def _resolve_path(base: Path, raw: str) -> tuple[Path, bool]:
     token = raw.strip()
@@ -192,7 +229,7 @@ def resolve_segments(command: str, cwd: Path) -> list[GitSegment]:
     known = True
     for part in split_top_level(command):
         try:
-            argv = shlex.split(part, posix=True)
+            argv = shlex.split(normalize_command_paths(part), posix=True)
         except ValueError:
             continue                    # unparseable segment: skip, fail open
         if not argv:

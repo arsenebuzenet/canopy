@@ -13,11 +13,11 @@ def _ws(root):
 
 def _seed_active(root, feature):
     (root / ".canopy" / "state").mkdir(parents=True, exist_ok=True)
-    (root / ".canopy" / "state" / "active.json").write_text(json.dumps({"active_feature": feature}))
+    (root / ".canopy" / "state" / "active.json").write_text(json.dumps({"active_feature": feature}), encoding="utf-8")
     fp = root / ".canopy" / "features.json"
-    data = json.loads(fp.read_text()) if fp.exists() else {}
+    data = json.loads(fp.read_text(encoding="utf-8")) if fp.exists() else {}
     data.setdefault(feature, {"repos": [], "status": "active"})
-    fp.write_text(json.dumps(data))
+    fp.write_text(json.dumps(data), encoding="utf-8")
 
 
 def test_join_creates_branch_and_registers(canopy_toml_for_workspace):

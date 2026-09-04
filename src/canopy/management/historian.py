@@ -21,13 +21,13 @@ markdown (for the agent / dashboard). Storage is line-delimited JSON
 under the hood, rendered to markdown on demand. This keeps writes O(1)
 and lets the rendering layer evolve without a data migration.
 
-File concurrency: writes use ``fcntl.flock`` with the same pattern as
-``.canopy/state/heads.json`` so concurrent agents on the same feature
-across worktrees don't corrupt the log.
+File concurrency: writes take ``compat.lock`` on a sidecar ``.lock`` file,
+the same pattern as ``.canopy/state/slots.lock``, so concurrent agents on
+the same feature across worktrees don't corrupt the log — and readers,
+which take no lock, are never shut out of the store.
 """
 from __future__ import annotations
 
-import fcntl
 import json
 import os
 import tempfile
@@ -35,6 +35,8 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
+
+from .. import compat
 
 
 _MEMORY_DIR = ".canopy/memory"
@@ -72,21 +74,26 @@ def _now_iso() -> str:
 
 @contextmanager
 def _locked_append(path: Path):
-    """Append-mode file handle with an exclusive flock.
+    """Append-mode file handle, serialized on a sidecar lock file.
 
-    Same pattern the post-checkout hook uses for heads.json — concurrent
-    agents writing to the same feature's memory queue safely. The first
-    write into the memory directory drops a ``.gitignore`` so the
-    per-feature memory files don't accidentally get committed.
+    The lock cannot sit on the store itself: Windows byte-range locks are
+    mandatory, so an unlocked reader — ``_load_entries``, which the render
+    refresh calls right after every append, and which ``canopy resume`` and
+    ``canopy historian`` go through — would raise ``PermissionError`` while
+    another agent appends. Same sidecar pattern as ``slots.lock``. The first
+    write into the memory directory drops a ``.gitignore`` so the per-feature
+    memory files (the sidecar included) don't get committed.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     _ensure_memory_gitignore(path.parent)
-    with open(path, "a", encoding="utf-8") as f:
-        try:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+    lock_file = open(path.with_name(path.name + ".lock"), "w", encoding="utf-8")
+    try:
+        compat.lock(lock_file)
+        with open(path, "a", encoding="utf-8") as f:
             yield f
-        finally:
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    finally:
+        compat.unlock(lock_file)
+        lock_file.close()
 
 
 def _ensure_memory_gitignore(memory_dir: Path) -> None:
@@ -99,7 +106,7 @@ def _ensure_memory_gitignore(memory_dir: Path) -> None:
     gi = memory_dir / ".gitignore"
     if gi.exists():
         return
-    gi.write_text("# Auto-written by canopy historian (M4).\n*\n!.gitignore\n")
+    gi.write_text("# Auto-written by canopy historian (M4).\n*\n!.gitignore\n", encoding="utf-8")
 
 
 def _atomic_write(path: Path, text: str) -> None:

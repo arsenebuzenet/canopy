@@ -23,7 +23,7 @@ src/canopy/
 │   ├── repo.py              # ALL git subprocess calls go here
 │   ├── multi.py             # cross-repo operations
 │   ├── hooks.py             # install/uninstall post-checkout hook + heads.json reader
-│   └── templates/post-checkout.py   # hook script (Python, fcntl-locked, never blocks git)
+│   └── templates/post-checkout.py   # hook script (Python, file-locked: fcntl on POSIX, msvcrt on Windows; never blocks git)
 ├── features/coordinator.py   # FeatureLane, FeatureCoordinator (+ branches map for per-repo branches)
 │                             #   (review_status/comments/prep extracted to management/review_ops.py in 4.0)
 ├── actions/                 # AGENT-CORE — the 15-tool surface + core primitives (imports NO management)
@@ -70,6 +70,7 @@ src/canopy/
 │   └── feature_state.py     # 9-state machine, dashboard backend (live git, worktree-aware)
 ├── agent/
 │   └── runner.py            # canopy_run — directory-safe shell exec
+├── compat.py                # platform seam: locks, shell dispatch, home dir, detached spawn
 ├── agent_setup/             # ships bundled skills + setup_agent installer
 │   ├── __init__.py          # install_skill / install_mcp / check_status
 │   └── skills/              # one SKILL.md per skill name
@@ -122,13 +123,14 @@ For integration testing against real services, see `~/projects/canopy-test/` (me
 ## Important Implementation Details
 
 - **Python 3.10+ compat:** `tomli` on 3.10, `tomllib` on 3.11+. See `config.py`.
-- **Drift detection:** post-checkout hook installed by `canopy init` (or `canopy hooks install`). Hook is Python; uses `fcntl.flock` + atomic rename so concurrent fires across repos don't race. Respects `core.hooksPath` (Husky-friendly). Chains pre-existing user hooks. Worktrees inherit hooks via `commondir` resolution.
+- **Drift detection:** post-checkout hook installed by `canopy init` (or `canopy hooks install`). Hook is Python; file-locked (fcntl on POSIX, msvcrt on Windows) + atomic rename so concurrent fires across repos don't race. Respects `core.hooksPath` (Husky-friendly). Chains pre-existing user hooks. Worktrees inherit hooks via `commondir` resolution.
 - **Enforcement hooks (4.0):** canopy ships Claude Code hooks. A **PreToolUse git gate** (`actions/hook_gate.py`) resolves the effective directory of a git command — through cd-chains, `git -C`, heredocs — and blocks mutations from the wrong path / wrong branch. A **SessionStart brief** (`actions/hook_context.py`) orients the agent. This is the enforcement half of "the agent can't `cd` wrong."
 - **`--no-track` on branch creation:** `git/repo.py:create_branch` and `worktree_add` always pass `--no-track` so a `branch.autoSetupMerge=inherit` gitconfig doesn't accidentally set the new branch's upstream to `dev`.
 - **Slot limits:** `[workspace] slots = N` in canopy.toml caps the number of warm slots (default **2**, so 1 canonical + 2 warm = 3 live trees max). The pre-3.0 `max_worktrees` key now raises `ConfigError` pointing at `canopy migrate-slots`. See `actions/switch_preflight.py:warm_slot_cap`.
 - **Action contract:** `actions/protocol.py` (planned) will formalize the per-repo `{status, before, after, reason?}` shape. For now, each action returns it ad-hoc.
 - **Skill bundling:** Bundled skills live at `src/canopy/agent_setup/skills/<name>/SKILL.md`. `canopy setup-agent` copies them to `~/.claude/skills/<name>/SKILL.md`. The default `using-canopy` skill always installs; opt-in extras (e.g. `augment-canopy`) install via `--skill <name>` (repeatable). Foreign skills with the same path are not overwritten without `--reinstall`. The `_SKILL_SOURCE` constant remains as a backward-compat alias pointing at `using-canopy`'s source.
 - **Version bumps:** When shipping a milestone, bump `__version__` in [`src/canopy/__init__.py`](src/canopy/__init__.py) and add a section to [`CHANGELOG.md`](CHANGELOG.md). The version handshake (`canopy --version`, `mcp__canopy__version`, doctor's `cli_stale` / `mcp_stale` checks) is only useful when this number actually moves — drift was the bug 0.5.0 caught.
+- **Platform seam:** `compat.py` is the only module allowed to import `fcntl`/`msvcrt` or test `sys.platform`/`os.name` (plus the standalone hook template). `platform.system()` is still fair game elsewhere for install hints (`cli/main.py`, `integrations/github.py`). Shell commands go through `compat.run_shell` (Git Bash on Windows). All text I/O passes `encoding="utf-8"`; both rules are enforced by `tests/test_import_boundary.py` and `tests/test_encoding_guard.py`.
 
 ## MCP Server (15 agent tools)
 

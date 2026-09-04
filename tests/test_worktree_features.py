@@ -20,7 +20,7 @@ from canopy.workspace.workspace import Workspace
 def _git(args, cwd):
     result = subprocess.run(
         ["git"] + args,
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True, text=True, encoding="utf-8", cwd=cwd,
         env={**os.environ, "GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "test@test.com",
              "GIT_COMMITTER_NAME": "Test", "GIT_COMMITTER_EMAIL": "test@test.com"},
     )
@@ -71,7 +71,7 @@ class TestFeatureCreateWorktree:
 
         # Features.json should record worktree info
         features_path = workspace_dir / ".canopy" / "features.json"
-        features = json.loads(features_path.read_text())
+        features = json.loads(features_path.read_text(encoding="utf-8"))
         assert features["payment-flow"]["use_worktrees"] is True
         assert "repo-a" in features["payment-flow"]["worktree_paths"]
 
@@ -134,7 +134,7 @@ class TestResolvePaths:
         assert "repo-b" in paths
         # Should point to worktree directories under .canopy/worktrees/<slot>
         for repo, path in paths.items():
-            assert ".canopy/worktrees/" in path
+            assert ".canopy/worktrees/" in Path(path).as_posix()
             assert Path(path).exists()
 
     def test_resolve_branch_paths(self, workspace_with_feature):
@@ -147,7 +147,7 @@ class TestResolvePaths:
         assert "repo-a" in paths
         assert "repo-b" in paths
         # Should point to the repo directories (branch is current)
-        assert paths["repo-a"] == str((workspace_with_feature / "repo-a").resolve())
+        assert Path(paths["repo-a"]).resolve() == (workspace_with_feature / "repo-a").resolve()
 
     def test_resolve_dot_workspace(self, workspace_dir):
         """resolve_paths for '.' isn't supported — that's the IDE command."""
@@ -172,7 +172,7 @@ class TestWorkspaceFileGeneration:
         ws_file = _generate_workspace_file(workspace_dir, "test-feature", paths)
 
         assert Path(ws_file).exists()
-        data = json.loads(Path(ws_file).read_text())
+        data = json.loads(Path(ws_file).read_text(encoding="utf-8"))
         assert len(data["folders"]) == 2
         assert data["settings"]["canopy.feature"] == "test-feature"
         assert ws_file.endswith(".code-workspace")
@@ -241,7 +241,7 @@ class TestWorktreeAddAndQuery:
 
         result = subprocess.run(
             ["git", "config", "--get", "branch.wt-no-inherit.remote"],
-            cwd=api, capture_output=True, text=True,
+            cwd=api, capture_output=True, text=True, encoding="utf-8",
         )
         assert result.returncode != 0, (
             f"new worktree branch unexpectedly has upstream tracking: "
@@ -296,7 +296,7 @@ class TestWorktreesLive:
         features = coordinator._load_features()
         slot_id = features["dirty-test"]["slot_id"]
         wt_path = workspace_dir / ".canopy" / "worktrees" / slot_id / "repo-a"
-        (wt_path / "new_file.py").write_text("print('hello')")
+        (wt_path / "new_file.py").write_text("print('hello')", encoding="utf-8")
 
         result = coordinator.worktrees_live()
         slot_view = result["slots"][slot_id]

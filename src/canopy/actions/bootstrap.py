@@ -25,6 +25,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Iterable
 
+from .. import compat
 from ..workspace.workspace import Workspace
 from .aliases import resolve_feature
 from .errors import BlockerError
@@ -208,7 +209,7 @@ def _read_fingerprints(workspace: Workspace) -> dict[str, str]:
     if not path.exists():
         return {}
     try:
-        data = json.loads(path.read_text("utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     return data if isinstance(data, dict) else {}
@@ -221,7 +222,7 @@ def _write_fingerprint(workspace: Workspace, worktree_path: Path, sha: str) -> N
     data = _read_fingerprints(workspace)
     data[str(worktree_path.resolve())] = sha
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2))
+    tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
     tmp.replace(path)
 
 
@@ -263,9 +264,9 @@ def _run_install(
     """
     import time
     start = time.monotonic()
-    proc = subprocess.run(
-        install_cmd, shell=True, cwd=worktree_path,
-        capture_output=not interactive, text=True,
+    proc = compat.run_shell(
+        install_cmd, cwd=worktree_path,
+        capture_output=not interactive, text=True, encoding="utf-8",
     )
     duration_ms = int((time.monotonic() - start) * 1000)
     out: dict[str, Any] = {
@@ -298,11 +299,11 @@ def _run_hook_install(worktree_path: Path, repo_cfg) -> dict[str, Any]:
     pkg = worktree_path / "package.json"
     if pkg.exists():
         try:
-            data = _json.loads(pkg.read_text())
+            data = _json.loads(pkg.read_text(encoding="utf-8"))
             if "prepare" in (data.get("scripts") or {}):
                 pm = "pnpm" if (worktree_path / "pnpm-lock.yaml").exists() else "npm"
                 cp = subprocess.run([pm, "run", "prepare"], cwd=str(worktree_path),
-                                    capture_output=True, text=True)
+                                    capture_output=True, text=True, encoding="utf-8")
                 return {"status": "ok" if cp.returncode == 0 else "failed",
                         "mechanism": f"{pm}-prepare", "exit_code": cp.returncode}
         except Exception as e:
@@ -332,7 +333,7 @@ def _write_ide_workspace(
     out_path = ws_dir / f"{feature_name}.code-workspace"
     body = render_code_workspace(workspace, feature_name, worktree_paths)
     tmp = out_path.with_suffix(out_path.suffix + ".tmp")
-    tmp.write_text(body)
+    tmp.write_text(body, encoding="utf-8")
     tmp.replace(out_path)
     return {"status": "ok", "path": str(out_path)}
 
@@ -383,7 +384,7 @@ def _resolve_worktree_paths(
     if not path.exists():
         return {}
     try:
-        data = json.loads(path.read_text("utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     entry = data.get(feature_name) or {}

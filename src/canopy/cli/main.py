@@ -140,7 +140,7 @@ def cmd_init(args: argparse.Namespace) -> None:
 
     from .ui import console, print_success, print_warning, separator, SYM_ARROW, SYM_CHECK
 
-    toml_path.write_text(toml_content)
+    toml_path.write_text(toml_content, encoding="utf-8")
 
     # Install drift-tracking post-checkout hooks in each non-worktree repo.
     # Worktrees inherit hooks from their main repo via commondir.
@@ -1111,7 +1111,7 @@ def _generate_workspace_file(
     }
 
     ws_file = canopy_dir / f"{label}.code-workspace"
-    ws_file.write_text(json.dumps(workspace_data, indent=2))
+    ws_file.write_text(json.dumps(workspace_data, indent=2), encoding="utf-8")
     return str(ws_file)
 
 
@@ -1180,7 +1180,7 @@ def cmd_fork(args: argparse.Namespace) -> None:
             # macOS fallback: open -a Fork
             result = subprocess.run(
                 ["open", "-a", "Fork", p],
-                capture_output=True, text=True,
+                capture_output=True, text=True, encoding="utf-8",
             )
             if result.returncode != 0:
                 print(f"Error: could not open Fork. Is Fork.app installed?",
@@ -3202,7 +3202,7 @@ def cmd_reply_thread(args: argparse.Namespace) -> None:
         body = args.body
     elif args.body_file is not None:
         from pathlib import Path
-        body = Path(args.body_file).read_text()
+        body = Path(args.body_file).read_text(encoding="utf-8")
     else:
         if sys.stdin.isatty():
             err = BlockerError(
@@ -3520,6 +3520,9 @@ def cmd_join(args: argparse.Namespace) -> None:
 # ── Entry point ───────────────────────────────────────────────────────────
 
 def main() -> None:
+    from ..compat import utf8_stdio
+    utf8_stdio()
+
     from .. import __version__
 
     parser = argparse.ArgumentParser(

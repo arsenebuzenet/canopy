@@ -113,11 +113,11 @@ def test_status_respects_per_repo_branch_override(canopy_toml):
 
     # repo-a uses a MISMATCHED branch name; repo-b matches the feature name.
     subprocess.run(["git", "checkout", "-b", "auth-flow-v2"], cwd=api, check=True)
-    (api / "x.py").write_text("a\n")
+    (api / "x.py").write_text("a\n", encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=api, check=True)
     subprocess.run(["git", "commit", "-qm", "wip"], cwd=api, check=True)
     subprocess.run(["git", "checkout", "-b", "auth-flow"], cwd=ui, check=True)
-    (ui / "y.ts").write_text("b\n")
+    (ui / "y.ts").write_text("b\n", encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=ui, check=True)
     subprocess.run(["git", "commit", "-qm", "wip"], cwd=ui, check=True)
     # Park both repos back on main.
@@ -130,7 +130,7 @@ def test_status_respects_per_repo_branch_override(canopy_toml):
             "repos": ["repo-a", "repo-b"], "status": "active",
             "branches": {"repo-a": "auth-flow-v2"},
         },
-    }))
+    }), encoding="utf-8")
 
     coord = FeatureCoordinator(Workspace(load_config(root)))
     lane = coord.status("auth-flow")
@@ -212,9 +212,9 @@ def test_feature_changes_includes_uncommitted(canopy_toml, workspace_with_featur
     # workspace_with_feature leaves api on auth-flow with a clean tree;
     # add an uncommitted edit + an untracked file.
     (api.abs_path / "src" / "models.py").write_text(
-        "class User:\n    name: str\n    email: str\n    token: str\n    role: str\n"
+        "class User:\n    name: str\n    email: str\n    token: str\n    role: str\n", encoding="utf-8"
     )
-    (api.abs_path / "src" / "scratch.py").write_text("# wip\n")
+    (api.abs_path / "src" / "scratch.py").write_text("# wip\n", encoding="utf-8")
 
     result = coord.feature_changes("auth-flow")
     api_paths = {c["path"]: c["status"] for c in result["repos"]["repo-a"]["changes"]}
@@ -247,7 +247,7 @@ def test_features_persisted(canopy_toml):
     features_path = canopy_toml / ".canopy" / "features.json"
     assert features_path.exists()
 
-    data = json.loads(features_path.read_text())
+    data = json.loads(features_path.read_text(encoding="utf-8"))
     assert "persist-test" in data
     assert data["persist-test"]["status"] == "active"
 
@@ -362,7 +362,7 @@ class TestLinkLinearIssue:
         assert lane.linear_url == "https://linear.app/x/SIN-777"
 
         features_path = canopy_toml / ".canopy" / "features.json"
-        persisted = json.loads(features_path.read_text())
+        persisted = json.loads(features_path.read_text(encoding="utf-8"))
         assert persisted["payment-flow"]["linear_issue"] == "SIN-777"
         assert persisted["payment-flow"]["linear_title"] == "Add Stripe webhook"
 
@@ -431,7 +431,7 @@ def test_worktrees_live_keyed_by_slot(workspace_with_slots):
 def test_resolve_paths_returns_slot_path_for_warm_feature(workspace_with_slots):
     coord = FeatureCoordinator(workspace_with_slots)
     paths = coord.resolve_paths("Y")  # Y is warm in worktree-1
-    assert paths["repo-a"].endswith("worktree-1/repo-a")
+    assert Path(paths["repo-a"]).as_posix().endswith("worktree-1/repo-a")
 
 
 def test_done_removes_slot_dirs(workspace_with_slots):

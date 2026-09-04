@@ -75,9 +75,9 @@ def test_filter_since_partial(canopy_toml):
     tr.record(canopy_toml, thread_id="PRRT_early", feature="f", via_command="resolve")
     # Manually write a past timestamp for one entry
     path = canopy_toml / ".canopy" / "state" / "thread_resolutions.json"
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     data["PRRT_early"]["resolved_by_canopy_at"] = "2020-01-01T00:00:00Z"
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding="utf-8")
 
     tr.record(canopy_toml, thread_id="PRRT_recent", feature="f", via_command="resolve")
 

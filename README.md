@@ -41,6 +41,8 @@ canopy setup-agent   # wire the MCP server + install the `using-canopy` skill
 
 `canopy setup-agent` writes the canopy MCP server into Claude Code and installs the `using-canopy` skill at `~/.claude/skills/using-canopy/SKILL.md` so the agent knows when to reach for canopy. Add `--hooks` to install the Claude Code enforcement hooks (the git gate + session brief) into `<workspace>/.claude/settings.json`, and `--skill augment-canopy` for the opt-in `canopy.toml [augments]` tuning skill.
 
+Windows: supported natively (Python 3.10+, Git for Windows). `canopy run`, `install_cmd` and `preflight_cmd` execute through Git Bash.
+
 <p align="center">
   <img src="docs/cli-init.svg" alt="canopy init" width="720">
 </p>

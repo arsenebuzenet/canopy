@@ -15,7 +15,7 @@ from canopy.workspace.workspace import Workspace
 
 def _git(args, cwd):
     subprocess.run(
-        ["git"] + args, cwd=cwd, check=True, capture_output=True, text=True,
+        ["git"] + args, cwd=cwd, check=True, capture_output=True, text=True, encoding="utf-8",
         env={**os.environ, "GIT_AUTHOR_NAME": "T", "GIT_AUTHOR_EMAIL": "t@t.com",
              "GIT_COMMITTER_NAME": "T", "GIT_COMMITTER_EMAIL": "t@t.com"},
     )
@@ -36,7 +36,7 @@ def _make_workspace(workspace_dir, repos=("repo-a", "repo-b")) -> Workspace:
 def _features_file(workspace_dir, payload):
     canopy_dir = workspace_dir / ".canopy"
     canopy_dir.mkdir(exist_ok=True)
-    (canopy_dir / "features.json").write_text(json.dumps(payload))
+    (canopy_dir / "features.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 def _wire_remote(repo_path):
@@ -131,7 +131,7 @@ def test_push_pushed_count_advances(workspace_with_remotes):
 
     # Add a new commit in api only.
     api = workspace_with_remotes / "repo-a"
-    (api / "new.py").write_text("new\n")
+    (api / "new.py").write_text("new\n", encoding="utf-8")
     _git(["add", "."], cwd=api)
     _git(["commit", "-m", "second on auth-flow"], cwd=api)
 
@@ -151,7 +151,7 @@ def test_push_dry_run_does_not_advance_remote(workspace_with_remotes):
     push(ws, feature="auth-flow", set_upstream=True)
 
     api = workspace_with_remotes / "repo-a"
-    (api / "new.py").write_text("new\n")
+    (api / "new.py").write_text("new\n", encoding="utf-8")
     _git(["add", "."], cwd=api)
     _git(["commit", "-m", "second"], cwd=api)
 
@@ -215,13 +215,13 @@ def test_push_rejected_on_non_fast_forward(workspace_with_remotes, tmp_path):
     _git(["clone", "--branch", "auth-flow", str(bare), str(second)], cwd=tmp_path)
     _git(["config", "user.email", "u@u.com"], cwd=second)
     _git(["config", "user.name", "Other"], cwd=second)
-    (second / "from_other.py").write_text("from other\n")
+    (second / "from_other.py").write_text("from other\n", encoding="utf-8")
     _git(["add", "."], cwd=second)
     _git(["commit", "-m", "diverged on auth-flow"], cwd=second)
     _git(["push", "origin", "auth-flow"], cwd=second)
 
     # Local repo writes its own commit → push rejects.
-    (api / "local_only.py").write_text("local\n")
+    (api / "local_only.py").write_text("local\n", encoding="utf-8")
     _git(["add", "."], cwd=api)
     _git(["commit", "-m", "local on auth-flow"], cwd=api)
 

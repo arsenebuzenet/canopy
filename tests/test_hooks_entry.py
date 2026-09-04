@@ -15,7 +15,7 @@ def _run_gate(payload_text: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, "-c",
          "from canopy.hooks_entry import gate_main; gate_main()"],
-        input=payload_text, capture_output=True, text=True,
+        input=payload_text, capture_output=True, text=True, encoding="utf-8",
     )
 
 
@@ -58,3 +58,16 @@ def test_gate_shim_blocks_with_stderr_only(workspace_with_canonical_only):
     assert p.returncode == 2
     assert "canopy: blocked" in p.stderr
     assert p.stdout == ""      # NEVER pollute stdout on the gate path
+
+
+def test_gate_shim_reads_non_ascii_payload_as_utf8(workspace_with_canonical_only):
+    """Claude Code writes the payload as UTF-8; a piped stdin defaults to the
+    ANSI codepage on Windows, which would mojibake the path the gate judges."""
+    ws = workspace_with_canonical_only
+    p = _run_gate(json.dumps({          # as Claude Code writes it: raw UTF-8
+        "tool_name": "Bash", "cwd": str(ws.config.root),
+        "tool_input": {"command": 'cd "café — ✓" && git commit -m x'},
+    }, ensure_ascii=False))
+    assert p.returncode == 2
+    assert "café — ✓" in p.stderr
+    assert p.stdout == ""

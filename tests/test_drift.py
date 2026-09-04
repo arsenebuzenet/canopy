@@ -46,7 +46,7 @@ def _write_heads(workspace_dir, **per_repo):
             "prev_sha": entry.get("prev_sha", entry.get("sha", "0" * 40)),
             "ts": entry.get("ts", now),
         }
-    (state_dir / "heads.json").write_text(json.dumps(state))
+    (state_dir / "heads.json").write_text(json.dumps(state), encoding="utf-8")
 
 
 def _create_explicit_feature(workspace_dir, name, repos):
@@ -56,10 +56,10 @@ def _create_explicit_feature(workspace_dir, name, repos):
     features_file = canopy_dir / "features.json"
     existing = {}
     if features_file.exists():
-        existing = json.loads(features_file.read_text())
+        existing = json.loads(features_file.read_text(encoding="utf-8"))
     existing[name] = {"repos": list(repos), "status": "active",
                       "created_at": "2026-04-25T00:00:00Z"}
-    features_file.write_text(json.dumps(existing))
+    features_file.write_text(json.dumps(existing), encoding="utf-8")
 
 
 # ── detect_drift ─────────────────────────────────────────────────────────

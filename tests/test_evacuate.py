@@ -36,7 +36,7 @@ class TestEvacuateRepo:
 
         assert result["status"] == "evacuated"
         assert result["slot_id"] == "worktree-1"
-        assert result["worktree_path"].endswith("worktree-1/repo-a")
+        assert Path(result["worktree_path"]).as_posix().endswith("worktree-1/repo-a")
         # Slot dir exists and is a git worktree
         slot_path = ws.config.root / ".canopy/worktrees/worktree-1/repo-a"
         assert (slot_path / ".git").exists()
@@ -73,7 +73,7 @@ class TestEvacuateRepo:
 
         # Leave a dirty file in repo-a (on auth-flow).
         dirty_file = api.abs_path / "src" / "dirty.py"
-        dirty_file.write_text("# dirty\n")
+        dirty_file.write_text("# dirty\n", encoding="utf-8")
 
         result = evacuate.evacuate_repo(
             ws,

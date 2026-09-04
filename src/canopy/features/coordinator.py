@@ -535,7 +535,7 @@ class FeatureCoordinator:
                     continue
             # Priority 2: worktree path discovered by git (fallback)
             if repo_state.get("worktree_path"):
-                paths[repo_name] = repo_state["worktree_path"]
+                paths[repo_name] = str(Path(repo_state["worktree_path"]).resolve())
             # Priority 3: repo is on this branch
             elif state.current_branch == name:
                 paths[repo_name] = str(state.abs_path)
@@ -942,11 +942,11 @@ class FeatureCoordinator:
         if not self._store_path.exists():
             return {}
         try:
-            return json.loads(self._store_path.read_text())
+            return json.loads(self._store_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             return {}
 
     def _save_features(self, features: dict) -> None:
         """Save features.json."""
         self._store_path.parent.mkdir(parents=True, exist_ok=True)
-        self._store_path.write_text(json.dumps(features, indent=2))
+        self._store_path.write_text(json.dumps(features, indent=2), encoding="utf-8")

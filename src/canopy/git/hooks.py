@@ -13,6 +13,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from .. import compat
+
 _HOOK_NAME = "post-checkout"
 _CHAINED_NAME = "post-checkout.canopy-chained"
 _MARKER = "__CANOPY_HOOK_MARKER__"
@@ -37,7 +39,7 @@ def install_hook(repo_path: Path, repo_name: str, workspace_root: Path) -> Insta
     hooks_dir.mkdir(parents=True, exist_ok=True)
     hook_path = hooks_dir / _HOOK_NAME
 
-    template = _TEMPLATE_PATH.read_text()
+    template = _TEMPLATE_PATH.read_text(encoding="utf-8")
     rendered = template.replace(
         '"__CANOPY_REPO__"', json.dumps(repo_name),
     ).replace(
@@ -46,7 +48,7 @@ def install_hook(repo_path: Path, repo_name: str, workspace_root: Path) -> Insta
 
     action = "installed"
     if hook_path.exists():
-        existing = hook_path.read_text()
+        existing = hook_path.read_text(encoding="utf-8")
         if _MARKER in existing:
             action = "reinstalled"
         else:
@@ -57,7 +59,7 @@ def install_hook(repo_path: Path, repo_name: str, workspace_root: Path) -> Insta
             _make_executable(chained)
             action = "chained_existing"
 
-    hook_path.write_text(rendered)
+    hook_path.write_text(rendered, encoding="utf-8")
     _make_executable(hook_path)
 
     return InstallResult(repo=repo_name, path=str(hook_path), action=action)
@@ -79,7 +81,7 @@ def uninstall_hook(repo_path: Path, repo_name: str) -> UninstallResult:
     if not hook_path.exists():
         return UninstallResult(repo=repo_name, action="not_installed")
 
-    if _MARKER not in hook_path.read_text():
+    if _MARKER not in hook_path.read_text(encoding="utf-8"):
         return UninstallResult(
             repo=repo_name, action="skipped",
             reason="hook exists but is not a canopy hook",
@@ -102,7 +104,7 @@ def hook_status(repo_path: Path) -> dict:
     if not hook_path.exists():
         return {"installed": False, "hook_path": str(hook_path)}
 
-    content = hook_path.read_text()
+    content = hook_path.read_text(encoding="utf-8")
     return {
         "installed": _MARKER in content,
         "foreign_hook": _MARKER not in content,
@@ -115,7 +117,7 @@ def read_heads_state(workspace_root: Path) -> dict:
     """Return ``{repo_name: {branch, sha, prev_sha, ts}}`` from the state file."""
     path = workspace_root / ".canopy" / "state" / "heads.json"
     try:
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
@@ -138,14 +140,14 @@ def resolve_hooks_dir(repo_path: Path) -> Path:
 
     git_path = repo_path / ".git"
     if git_path.is_file():
-        contents = git_path.read_text().strip()
+        contents = git_path.read_text(encoding="utf-8").strip()
         if contents.startswith("gitdir:"):
             worktree_gitdir = Path(contents.split(":", 1)[1].strip())
             if not worktree_gitdir.is_absolute():
                 worktree_gitdir = (repo_path / worktree_gitdir).resolve()
             commondir_file = worktree_gitdir / "commondir"
             if commondir_file.is_file():
-                common = Path(commondir_file.read_text().strip())
+                common = Path(commondir_file.read_text(encoding="utf-8").strip())
                 if not common.is_absolute():
                     common = (worktree_gitdir / common).resolve()
                 return common / "hooks"
@@ -157,7 +159,7 @@ def _get_core_hooks_path(repo_path: Path) -> Path | None:
     """Read ``core.hooksPath`` from the repo's config. Returns None if unset."""
     result = subprocess.run(
         ["git", "config", "--get", "core.hooksPath"],
-        cwd=repo_path, capture_output=True, text=True, check=False,
+        cwd=repo_path, capture_output=True, text=True, encoding="utf-8", check=False,
     )
     value = result.stdout.strip()
     if result.returncode != 0 or not value:
@@ -169,5 +171,7 @@ def _get_core_hooks_path(repo_path: Path) -> Path | None:
 
 
 def _make_executable(path: Path) -> None:
+    if compat.IS_WINDOWS:
+        return  # NTFS has no execute bit; Git for Windows runs hooks via sh regardless
     mode = path.stat().st_mode
     path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)

@@ -20,7 +20,7 @@ from canopy.workspace.workspace import Workspace
 def _git(args, cwd):
     result = subprocess.run(
         ["git"] + args,
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True, text=True, encoding="utf-8", cwd=cwd,
         env={**os.environ, "GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "test@test.com",
              "GIT_COMMITTER_NAME": "Test", "GIT_COMMITTER_EMAIL": "test@test.com"},
     )
@@ -47,7 +47,7 @@ def _make_workspace(workspace_dir) -> Workspace:
 class TestStashRepo:
     def test_stash_save_and_list(self, workspace_dir):
         api = workspace_dir / "repo-a"
-        (api / "src" / "new_file.py").write_text("hello\n")
+        (api / "src" / "new_file.py").write_text("hello\n", encoding="utf-8")
         _git(["add", "."], cwd=api)
 
         assert git.stash_save(api, "test stash") is True
@@ -62,7 +62,7 @@ class TestStashRepo:
 
     def test_stash_pop(self, workspace_dir):
         api = workspace_dir / "repo-a"
-        (api / "src" / "stashed.py").write_text("stashed content\n")
+        (api / "src" / "stashed.py").write_text("stashed content\n", encoding="utf-8")
         _git(["add", "."], cwd=api)
         git.stash_save(api, "to pop")
 
@@ -72,7 +72,7 @@ class TestStashRepo:
 
     def test_stash_drop(self, workspace_dir):
         api = workspace_dir / "repo-a"
-        (api / "src" / "tmp.py").write_text("tmp\n")
+        (api / "src" / "tmp.py").write_text("tmp\n", encoding="utf-8")
         _git(["add", "."], cwd=api)
         git.stash_save(api, "to drop")
         assert len(git.stash_list(api)) == 1
@@ -95,7 +95,7 @@ class TestBranchRepo:
         api = workspace_dir / "repo-a"
         git.create_branch(api, "unmerged")
         _git(["checkout", "unmerged"], cwd=api)
-        (api / "unmerged.py").write_text("x\n")
+        (api / "unmerged.py").write_text("x\n", encoding="utf-8")
         _git(["add", "."], cwd=api)
         _git(["commit", "-m", "unmerged commit"], cwd=api)
         _git(["checkout", "main"], cwd=api)
@@ -173,8 +173,8 @@ class TestWorktreeRepo:
         # Main repo should list both worktrees
         worktrees = git.worktree_list(api)
         assert len(worktrees) == 2
-        wt_paths = {wt["path"] for wt in worktrees}
-        assert str(api) in wt_paths or str(api.resolve()) in wt_paths
+        wt_paths = {Path(wt["path"]).resolve() for wt in worktrees}
+        assert api.resolve() in wt_paths
 
         # Cleanup
         _git(["worktree", "remove", str(wt_path)], cwd=api)
@@ -186,7 +186,7 @@ class TestStashMulti:
     def test_stash_save_all(self, workspace_dir):
         ws = _make_workspace(workspace_dir)
         api = workspace_dir / "repo-a"
-        (api / "dirty.py").write_text("dirty\n")
+        (api / "dirty.py").write_text("dirty\n", encoding="utf-8")
         _git(["add", "."], cwd=api)
 
         results = multi.stash_save_all(ws, message="bulk stash")
@@ -196,7 +196,7 @@ class TestStashMulti:
     def test_stash_list_all(self, workspace_dir):
         ws = _make_workspace(workspace_dir)
         api = workspace_dir / "repo-a"
-        (api / "dirty.py").write_text("dirty\n")
+        (api / "dirty.py").write_text("dirty\n", encoding="utf-8")
         _git(["add", "."], cwd=api)
         multi.stash_save_all(ws, message="test")
 
@@ -208,7 +208,7 @@ class TestStashMulti:
     def test_stash_pop_all(self, workspace_dir):
         ws = _make_workspace(workspace_dir)
         api = workspace_dir / "repo-a"
-        (api / "dirty.py").write_text("dirty\n")
+        (api / "dirty.py").write_text("dirty\n", encoding="utf-8")
         _git(["add", "."], cwd=api)
         multi.stash_save_all(ws, message="to pop")
 
@@ -219,7 +219,7 @@ class TestStashMulti:
     def test_stash_drop_all(self, workspace_dir):
         ws = _make_workspace(workspace_dir)
         api = workspace_dir / "repo-a"
-        (api / "dirty.py").write_text("dirty\n")
+        (api / "dirty.py").write_text("dirty\n", encoding="utf-8")
         _git(["add", "."], cwd=api)
         multi.stash_save_all(ws, message="to drop")
 
@@ -231,9 +231,9 @@ class TestStashMulti:
         ws = _make_workspace(workspace_dir)
         api = workspace_dir / "repo-a"
         ui = workspace_dir / "repo-b"
-        (api / "dirty.py").write_text("dirty\n")
+        (api / "dirty.py").write_text("dirty\n", encoding="utf-8")
         _git(["add", "."], cwd=api)
-        (ui / "dirty.ts").write_text("dirty\n")
+        (ui / "dirty.ts").write_text("dirty\n", encoding="utf-8")
         _git(["add", "."], cwd=ui)
 
         results = multi.stash_save_all(ws, repos=["repo-a"])
@@ -249,7 +249,7 @@ class TestCommitMulti:
         api = workspace_dir / "repo-a"
         ui = workspace_dir / "repo-b"
 
-        (api / "new.py").write_text("new\n")
+        (api / "new.py").write_text("new\n", encoding="utf-8")
         _git(["add", "."], cwd=api)
 
         results = multi.commit_all(ws, "cross-repo commit")
@@ -259,7 +259,7 @@ class TestCommitMulti:
     def test_commit_filtered(self, workspace_dir):
         ws = _make_workspace(workspace_dir)
         api = workspace_dir / "repo-a"
-        (api / "new.py").write_text("new\n")
+        (api / "new.py").write_text("new\n", encoding="utf-8")
         _git(["add", "."], cwd=api)
 
         results = multi.commit_all(ws, "only api", repos=["repo-a"])

@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from .. import __version__
+from .. import compat
 from ..git import hooks as canopy_hooks
 from ..git import repo as git
 from ..workspace.workspace import Workspace
@@ -336,7 +337,7 @@ def check_hook_chained_unsafe(workspace: Workspace) -> list[Issue]:
         chained = hooks_dir / "post-checkout.canopy-chained"
         if not canopy_hook.exists():
             continue
-        text = canopy_hook.read_text()
+        text = canopy_hook.read_text(encoding="utf-8")
         # Our hook references the chained file by name; if the chained marker
         # is referenced but the file is missing or non-executable, surface it.
         if "post-checkout.canopy-chained" not in text:
@@ -345,7 +346,7 @@ def check_hook_chained_unsafe(workspace: Workspace) -> list[Issue]:
             # Reference is benign — the hook checks before exec'ing — but
             # it might indicate the user expected a chained hook.
             continue
-        if not os.access(chained, os.X_OK):
+        if not compat.IS_WINDOWS and not os.access(chained, os.X_OK):
             issues.append(Issue(
                 code="hook_chained_unsafe",
                 severity="warn",
@@ -365,7 +366,7 @@ def check_preflight_stale(workspace: Workspace) -> list[Issue]:
     if not path.exists():
         return []
     try:
-        state = json.loads(path.read_text())
+        state = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return []
     if not isinstance(state, dict):
@@ -512,7 +513,7 @@ def check_slot_entry_orphans(workspace: Workspace) -> list[Issue]:
     if not state_path.exists():
         return []
     try:
-        data = json.loads(state_path.read_text())
+        data = json.loads(state_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return []
     wt_base = workspace.config.root / ".canopy" / "worktrees"
@@ -753,7 +754,7 @@ def check_mcp_missing_in_workspace(workspace: Workspace) -> list[Issue]:
             details={"path": str(target)},
         )]
     try:
-        cfg = json.loads(target.read_text())
+        cfg = json.loads(target.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
         return [Issue(
             code="mcp_missing_in_workspace",
@@ -819,8 +820,8 @@ def check_skill_stale(workspace: Workspace) -> list[Issue]:
     if not target.exists():
         return []  # missing, not stale — skill_missing handles it
     try:
-        installed = target.read_text()
-        bundled = _SKILL_SOURCE.read_text()
+        installed = target.read_text(encoding="utf-8")
+        bundled = _SKILL_SOURCE.read_text(encoding="utf-8")
     except OSError:
         return []
     if installed == bundled:
@@ -885,10 +886,12 @@ def _list_orphan_canopy_mcp_pids() -> list[int]:
     Skips the current process and its ancestors so a doctor invocation
     from inside an MCP context can't report itself.
     """
+    if compat.IS_WINDOWS:
+        return []   # no `ps`, and "reparented to PID 1" has no Windows equivalent
     try:
         out = subprocess.run(
             ["ps", "-eo", "pid=,ppid=,command="],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, text=True, encoding="utf-8", timeout=5,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return []
@@ -977,7 +980,7 @@ def repair_heads_stale(workspace: Workspace, issue: Issue) -> RepairResult:
         "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
     tmp = state_path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(state, indent=2))
+    tmp.write_text(json.dumps(state, indent=2), encoding="utf-8")
     tmp.replace(state_path)
     return RepairResult(
         code=issue.code, success=True, repo=repo_name,
@@ -1003,7 +1006,7 @@ def repair_active_feature_path_missing(workspace: Workspace, issue: Issue) -> Re
         return RepairResult(code=issue.code, success=True,
                             action_taken="active_feature.json already absent")
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
         path.unlink()
         return RepairResult(code=issue.code, success=True,
@@ -1033,7 +1036,7 @@ def repair_active_feature_path_missing(workspace: Workspace, issue: Issue) -> Re
             new_paths[repo_name] = str(rs.abs_path)
     data["per_repo_paths"] = new_paths
     tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(data, indent=2))
+    tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
     tmp.replace(path)
     return RepairResult(
         code=issue.code, success=True, feature=feature, repo=issue.repo,
@@ -1149,7 +1152,7 @@ def repair_hook_chained_unsafe(workspace: Workspace, issue: Issue) -> RepairResu
                             error=str(e), repo=repo_name)
     hooks_dir = canopy_hooks.resolve_hooks_dir(rs.abs_path)
     chained = hooks_dir / "post-checkout.canopy-chained"
-    if chained.exists() and not os.access(chained, os.X_OK):
+    if chained.exists() and not compat.IS_WINDOWS and not os.access(chained, os.X_OK):
         mode = chained.stat().st_mode
         chained.chmod(mode | 0o111)
         return RepairResult(code=issue.code, success=True, repo=repo_name,
@@ -1166,7 +1169,7 @@ def repair_preflight_stale(workspace: Workspace, issue: Issue) -> RepairResult:
         return RepairResult(code=issue.code, success=True, feature=feature,
                             action_taken="preflight.json absent")
     try:
-        state = json.loads(path.read_text())
+        state = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         path.unlink()
         return RepairResult(code=issue.code, success=True, feature=feature,
@@ -1178,7 +1181,7 @@ def repair_preflight_stale(workspace: Workspace, issue: Issue) -> RepairResult:
         return RepairResult(code=issue.code, success=True, feature=feature,
                             action_taken=f"removed empty preflight.json")
     tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(state, indent=2))
+    tmp.write_text(json.dumps(state, indent=2), encoding="utf-8")
     tmp.replace(path)
     return RepairResult(code=issue.code, success=True, feature=feature,
                         action_taken=f"cleared preflight entry for '{feature}'")
@@ -1251,7 +1254,7 @@ def repair_mcp_orphans(workspace: Workspace, issue: Issue) -> RepairResult:
             except ProcessLookupError:
                 continue   # gone, good
             try:
-                os.kill(pid, signal.SIGKILL)
+                os.kill(pid, signal.SIGTERM if compat.IS_WINDOWS else signal.SIGKILL)
             except ProcessLookupError:
                 continue
             except Exception as e:  # noqa: BLE001
@@ -1276,7 +1279,7 @@ def repair_slot_entry_orphan(workspace: Workspace, issue: Issue) -> RepairResult
         return RepairResult(code=issue.code, success=True,
                             action_taken="slots.json already absent")
     try:
-        data = json.loads(state_path.read_text())
+        data = json.loads(state_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
         return RepairResult(code=issue.code, success=False, action_taken="",
                             error=str(e))
@@ -1286,7 +1289,7 @@ def repair_slot_entry_orphan(workspace: Workspace, issue: Issue) -> RepairResult
                             action_taken=f"entry '{sid}' already absent from slots.json")
     slots.pop(sid)
     tmp = state_path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(data, indent=2))
+    tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
     tmp.replace(state_path)
     return RepairResult(code=issue.code, success=True,
                         action_taken=f"dropped slots.json entry for '{sid}'")
@@ -1447,7 +1450,7 @@ def _read_raw_active_feature(workspace_root: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
     if not isinstance(data, dict):
@@ -1460,7 +1463,7 @@ def _load_features_raw(workspace_root: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
@@ -1470,7 +1473,7 @@ def _save_features_raw(workspace_root: Path, features: dict[str, Any]) -> None:
     path = workspace_root / ".canopy" / "features.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(features, indent=2))
+    tmp.write_text(json.dumps(features, indent=2), encoding="utf-8")
     tmp.replace(path)
 
 
@@ -1479,7 +1482,7 @@ def _read_binary_version(binary_path: str) -> str | None:
     try:
         out = subprocess.run(
             [binary_path, "--version"],
-            capture_output=True, text=True, check=False, timeout=5,
+            capture_output=True, text=True, encoding="utf-8", check=False, timeout=5,
         )
     except (OSError, subprocess.TimeoutExpired):
         return None

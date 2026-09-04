@@ -29,7 +29,7 @@ def test_dirty_merged_slot_is_advised_not_vacated(workspace_with_slots):
     ws = workspace_with_slots
     prs_cache.write(ws, {"Y": {"repos": {"repo-a": {"number": 1, "state": "merged"}}}})
     wt = sm.slot_worktree_path(ws, "worktree-1", "repo-a")
-    (wt / "wip.txt").write_text("uncommitted\n")
+    (wt / "wip.txt").write_text("uncommitted\n", encoding="utf-8")
     result = reclaim.reclaim_merged(ws)
     assert "Y" not in result["freed"]
     assert any(a["feature"] == "Y" for a in result["advisories"])
@@ -50,7 +50,7 @@ def test_reclaimable_advisories_read_only(workspace_with_slots):
     ws = workspace_with_slots
     prs_cache.write(ws, {"Y": {"repos": {"repo-a": {"number": 1, "state": "merged"}}}})
     wt = sm.slot_worktree_path(ws, "worktree-1", "repo-a")
-    (wt / "wip.txt").write_text("dirty\n")
+    (wt / "wip.txt").write_text("dirty\n", encoding="utf-8")
     adv = reclaim.reclaimable_advisories(ws)
     assert any(a["code"] == "reclaimable_but_dirty" and a["feature"] == "Y" for a in adv)
     # no mutation

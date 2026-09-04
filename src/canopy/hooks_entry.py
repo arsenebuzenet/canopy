@@ -13,6 +13,8 @@ from pathlib import Path
 
 def gate_main() -> None:
     """PreToolUse shim. Exit 0 = allow; exit 2 = block, reason on stderr."""
+    from .compat import utf8_stdio
+    utf8_stdio()
     try:
         payload = json.loads(sys.stdin.read() or "{}")
     except Exception:
@@ -29,6 +31,8 @@ def gate_main() -> None:
 
 def context_main() -> None:
     """SessionStart shim. Prints the workspace brief to stdout (→ context)."""
+    from .compat import utf8_stdio
+    utf8_stdio()
     try:
         payload = json.loads(sys.stdin.read() or "{}")
         cwd = Path(payload.get("cwd") or Path.cwd())

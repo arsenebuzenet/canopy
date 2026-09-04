@@ -140,7 +140,7 @@ def _detect_default_branch(repo_path: Path) -> str:
     head_ref = git_path / "refs" / "remotes" / "origin" / "HEAD"
     if head_ref.exists():
         try:
-            content = head_ref.read_text().strip()
+            content = head_ref.read_text(encoding="utf-8").strip()
             # "ref: refs/remotes/origin/main"
             if content.startswith("ref:"):
                 return content.split("/")[-1]
@@ -157,7 +157,7 @@ def _detect_default_branch(repo_path: Path) -> str:
     head_file = git_path / "HEAD"
     if head_file.exists():
         try:
-            content = head_file.read_text().strip()
+            content = head_file.read_text(encoding="utf-8").strip()
             if content.startswith("ref: refs/heads/"):
                 return content.replace("ref: refs/heads/", "")
         except OSError:
@@ -218,7 +218,7 @@ def summarize_worktree_dirs(root: Path) -> dict[str, list[str]]:
     state_path = root / ".canopy" / "state" / "slots.json"
     if state_path.exists():
         try:
-            data = json.loads(state_path.read_text())
+            data = json.loads(state_path.read_text(encoding="utf-8"))
             for sid, entry in (data.get("slots") or {}).items():
                 if isinstance(entry, dict):
                     slot_feature[sid] = entry.get("feature")

@@ -33,7 +33,7 @@ def workspace_with_features_json(workspace_dir, canopy_toml) -> Workspace:
             "linear_title": "Add auth refresh",
             "linear_url": "https://linear.app/x/issue/SIN-12",
         }
-    }))
+    }), encoding="utf-8")
     return Workspace(load_config(workspace_dir))
 
 

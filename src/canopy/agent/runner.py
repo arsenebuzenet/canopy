@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from .. import compat
 from ..actions.errors import BlockerError, FailedError, FixAction
 from ..workspace.workspace import Workspace
 
@@ -43,12 +44,11 @@ def run_in_repo(
 
     started = time.monotonic()
     try:
-        proc = subprocess.run(
+        proc = compat.run_shell(
             command,
             cwd=cwd,
-            shell=True,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=timeout_seconds,
         )
     except subprocess.TimeoutExpired as e:

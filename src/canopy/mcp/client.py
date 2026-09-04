@@ -67,7 +67,7 @@ def _load_mcp_configs(workspace_root: Path) -> dict[str, dict]:
     shared_path = workspace_root / ".mcp.json"
     if shared_path.exists():
         try:
-            shared = json.loads(shared_path.read_text())
+            shared = json.loads(shared_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as e:
             raise McpClientError(f"Failed to read {shared_path}: {e}")
         servers = shared.get("mcpServers") if isinstance(shared, dict) else None
@@ -79,7 +79,7 @@ def _load_mcp_configs(workspace_root: Path) -> dict[str, dict]:
     canopy_path = workspace_root / ".canopy" / "mcps.json"
     if canopy_path.exists():
         try:
-            canopy_cfg = json.loads(canopy_path.read_text())
+            canopy_cfg = json.loads(canopy_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as e:
             raise McpClientError(f"Failed to read {canopy_path}: {e}")
         if isinstance(canopy_cfg, dict):
@@ -197,19 +197,19 @@ def _make_oauth_provider(server_name: str, server_url: str):
         async def get_tokens(self) -> OAuthToken | None:
             if not token_path.exists():
                 return None
-            data = json.loads(token_path.read_text())
+            data = json.loads(token_path.read_text(encoding="utf-8"))
             return OAuthToken(**data)
 
         async def set_tokens(self, tokens: OAuthToken) -> None:
-            token_path.write_text(tokens.model_dump_json(indent=2))
+            token_path.write_text(tokens.model_dump_json(indent=2), encoding="utf-8")
 
         async def get_client_info(self) -> OAuthClientInformationFull | None:
             if not client_info_path.exists():
                 return None
-            return OAuthClientInformationFull(**json.loads(client_info_path.read_text()))
+            return OAuthClientInformationFull(**json.loads(client_info_path.read_text(encoding="utf-8")))
 
         async def set_client_info(self, client_info: OAuthClientInformationFull) -> None:
-            client_info_path.write_text(client_info.model_dump_json(indent=2))
+            client_info_path.write_text(client_info.model_dump_json(indent=2), encoding="utf-8")
 
     metadata = OAuthClientMetadata(
         client_name="canopy",

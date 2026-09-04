@@ -1,6 +1,7 @@
 """Tests for canopy.management.triage — daily entry-point query."""
 import json
 import subprocess
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -26,14 +27,14 @@ def _make_workspace(workspace_dir, repos=("repo-a", "repo-b")) -> Workspace:
 def _set_remote(repo_path, url):
     subprocess.run(
         ["git", "remote", "add", "origin", url],
-        cwd=repo_path, check=True, capture_output=True, text=True,
+        cwd=repo_path, check=True, capture_output=True, text=True, encoding="utf-8",
     )
 
 
 def _features_file(workspace_dir, payload):
     canopy_dir = workspace_dir / ".canopy"
     canopy_dir.mkdir(exist_ok=True)
-    (canopy_dir / "features.json").write_text(json.dumps(payload))
+    (canopy_dir / "features.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 def _pr(number, branch, decision="REVIEW_REQUIRED", title="x"):
@@ -303,7 +304,7 @@ def test_triage_marks_canonical_feature(workspace_with_feature):
     for r in ("repo-a", "repo-b"):
         info = feat["repos"][r]
         assert info["physical_state"] == "canonical"
-        assert info["path"].endswith(f"/{r}")
+        assert Path(info["path"]).as_posix().endswith(f"/{r}")
 
 
 def test_triage_marks_warm_feature_with_worktree_path(workspace_with_feature):
@@ -350,7 +351,7 @@ def test_triage_marks_warm_feature_with_worktree_path(workspace_with_feature):
     for r in ("repo-a", "repo-b"):
         info = feat["repos"][r]
         assert info["physical_state"] == "warm"
-        assert ".canopy/worktrees/" in info["path"]
+        assert ".canopy/worktrees/" in Path(info["path"]).as_posix()
 
 
 def test_triage_marks_cold_feature_no_worktree(workspace_with_feature):

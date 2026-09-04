@@ -287,7 +287,7 @@ def _write_features(ws, features: dict):
     fpath = _root(ws) / ".canopy" / "features.json"
     fpath.parent.mkdir(exist_ok=True)
     fpath.write_text(json.dumps(
-        {name: {"repos": repos} for name, repos in features.items()}))
+        {name: {"repos": repos} for name, repos in features.items()}), encoding="utf-8")
 
 
 def test_gate_blocks_commit_on_drifted_trunk(workspace_with_canonical_only):
@@ -328,7 +328,7 @@ def test_trunk_drift_message_no_canonical(workspace_with_canonical_only):
     ws = workspace_with_canonical_only
     _write_features(ws, {"Y": ["repo-a", "repo-b"]})
     (_root(ws) / ".canopy" / "state" / "slots.json").write_text(json.dumps(
-        {"slot_count": 2, "canonical": None, "slots": {}, "last_touched": {}}))
+        {"slot_count": 2, "canonical": None, "slots": {}, "last_touched": {}}), encoding="utf-8")
     subprocess.run(["git", "checkout", "Y"], cwd=_root(ws) / "repo-a",
                    check=True, capture_output=True)
     d = gate_command(ws, 'git commit -m "x"', cwd=_root(ws) / "repo-a")
@@ -348,7 +348,7 @@ def test_branch_owner_respects_per_repo_branches_map(workspace_with_canonical_on
         "X": {"repos": ["repo-a", "repo-b"]},
         "Y": {"repos": ["repo-a", "repo-b"],
               "branches": {"repo-a": "custom-branch-name"}},
-    }))
+    }), encoding="utf-8")
     subprocess.run(["git", "checkout", "-b", "custom-branch-name"],
                    cwd=_root(ws) / "repo-a", check=True, capture_output=True)
     d = gate_command(ws, 'git commit -m "x"', cwd=_root(ws) / "repo-a")
@@ -484,3 +484,88 @@ def test_run_gate_respects_disable_env(workspace_with_canonical_only, monkeypatc
     monkeypatch.setenv("CANOPY_HOOKS_DISABLED", "1")
     code, _ = run_gate(_payload('git commit -m "x"', _root(ws)))
     assert code == 0     # would block without the escape hatch
+
+
+# ── Windows / msys path normalisation ───────────────────────────────────
+
+def test_backslash_paths_survive_parsing(tmp_path):
+    """Windows agents type C:\\Users\\... — shlex(posix=True) must not eat the backslashes."""
+    from canopy.actions.hook_gate import resolve_segments
+    from canopy.compat import IS_WINDOWS
+    if not IS_WINDOWS:
+        pytest.skip("backslash is an escape on POSIX")
+    win = str(tmp_path / "ui").replace("/", "\\")
+    segs = resolve_segments(f"git -C {win} commit -m 'x'", cwd=tmp_path)
+    assert segs[0].effective_dir.resolve() == (tmp_path / "ui").resolve()
+
+
+def test_msys_escaped_space_survives_normalisation(tmp_path):
+    """Git Bash escapes a space as `\\ `; that backslash must not be swept into
+    a separator, or the gate confidently resolves the wrong directory."""
+    from canopy.actions.hook_gate import resolve_segments
+    from canopy.compat import IS_WINDOWS
+    if not IS_WINDOWS:
+        pytest.skip("Windows path normalisation only")
+    repo = tmp_path / "my dir" / "repo"
+    repo.mkdir(parents=True)
+    drive, rest = str(repo).split(":", 1)
+    msys = f"/{drive.lower()}{rest.replace(chr(92), '/').replace(' ', chr(92) + ' ')}"
+    segs = resolve_segments(f"cd {msys} && git commit -m x", cwd=tmp_path)
+    assert len(segs) == 1
+    assert segs[0].dir_known is True
+    assert segs[0].effective_dir.resolve() == repo.resolve()
+
+
+def test_msys_drive_prefix_is_rewritten():
+    """Git Bash spells C:\\x as /c/x; the gate maps it back on Windows."""
+    from canopy.actions.hook_gate import normalize_command_paths
+    from canopy.compat import IS_WINDOWS
+    out = normalize_command_paths("cd /c/Dev/ws/api && git push")
+    if IS_WINDOWS:
+        assert out == "cd C:/Dev/ws/api && git push"
+    else:
+        assert out == "cd /c/Dev/ws/api && git push"
+
+
+def test_normalize_is_identity_for_posix_commands():
+    from canopy.actions.hook_gate import normalize_command_paths
+    from canopy.compat import IS_WINDOWS
+    cmd = "cd /home/me/ws && git commit -m 'a\\nb'"
+    if not IS_WINDOWS:
+        assert normalize_command_paths(cmd) == cmd
+
+
+def test_native_drive_path_with_single_letter_component(tmp_path):
+    r"""`D:\a\canopy` (the GitHub Actions checkout layout) must survive the
+    sweep: the drive colon used to satisfy the msys lookbehind, so `/a/`
+    was rewritten to `A:/` and the gate blocked from a confidently wrong dir."""
+    from canopy.actions.hook_gate import normalize_command_paths, resolve_segments
+    from canopy.compat import IS_WINDOWS
+    if not IS_WINDOWS:
+        pytest.skip("Windows path normalisation only")
+    cmd = r"cd D:\a\canopy && git commit -m x"
+    assert normalize_command_paths(cmd) == "cd D:/a/canopy && git commit -m x"
+    segs = resolve_segments(cmd, cwd=tmp_path)
+    assert len(segs) == 1
+    assert segs[0].dir_known is True
+    assert segs[0].effective_dir == Path(r"D:\a\canopy")
+    # The msys spelling of the same path still maps to the drive.
+    assert (normalize_command_paths("cd /d/a/canopy && git commit -m x")
+            == "cd D:/a/canopy && git commit -m x")
+
+
+def test_escaped_quote_does_not_drop_the_segment(tmp_path):
+    """A POSIX `\\"` inside a commit message must not become `/"` — that leaves
+    an odd quote count, shlex raises, the segment is skipped and the gate
+    fails open on a mutation."""
+    from canopy.actions.hook_gate import resolve_segments
+    from canopy.compat import IS_WINDOWS
+    if not IS_WINDOWS:
+        pytest.skip("Windows path normalisation only")
+    segs = resolve_segments('git commit -m "note: use \\" as a quote"', cwd=tmp_path)
+    assert len(segs) == 1
+    assert segs[0].argv_after_globals[0] == "commit"
+    win = str(tmp_path / "ui").replace("/", "\\")
+    segs = resolve_segments(f'git -C {win} commit -m "say \\" here"', cwd=tmp_path)
+    assert len(segs) == 1
+    assert segs[0].effective_dir.resolve() == (tmp_path / "ui").resolve()

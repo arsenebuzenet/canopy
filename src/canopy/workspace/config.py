@@ -295,7 +295,7 @@ def set_config_value(root: Path, key: str, value: str) -> Any:
     if not toml_path.exists():
         raise ConfigNotFoundError(f"No canopy.toml at {root}")
 
-    content = toml_path.read_text()
+    content = toml_path.read_text(encoding="utf-8")
 
     # Try to update existing key under [workspace]
     import re
@@ -337,7 +337,7 @@ def set_config_value(root: Path, key: str, value: str) -> Any:
     if not updated:
         raise ConfigError("Could not find [workspace] section in canopy.toml")
 
-    toml_path.write_text("\n".join(lines))
+    toml_path.write_text("\n".join(lines), encoding="utf-8")
     return coerced
 
 

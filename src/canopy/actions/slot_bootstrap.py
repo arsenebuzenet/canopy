@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 
+from .. import compat
 from ..workspace.workspace import Workspace
 
 _FAST_STEPS = ("env", "ide", "hooks")
@@ -46,7 +47,7 @@ def _spawn_deps_background(workspace: Workspace, feature: str, sid: str) -> None
          "--deps", feature, "--_slot", sid],
         cwd=str(workspace.config.root),
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        start_new_session=True,
+        **compat.detached_popen_kwargs(),
     )
 
 

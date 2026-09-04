@@ -26,14 +26,14 @@ def _setup_workspace(tmp_path) -> Path:
         subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
         subprocess.run(["git", "config", "user.email", "t@x"], cwd=repo, check=True)
         subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)
-        (repo / "README.md").write_text("x")
+        (repo / "README.md").write_text("x", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=repo, check=True)
         subprocess.run(["git", "commit", "-qm", "init"], cwd=repo, check=True)
 
     (tmp_path / "canopy.toml").write_text(
         '[workspace]\nname = "t"\n\n'
         '[[repos]]\nname = "repo-a"\npath = "./repo-a"\n\n'
-        '[[repos]]\nname = "repo-b"\npath = "./repo-b"\n'
+        '[[repos]]\nname = "repo-b"\npath = "./repo-b"\n', encoding="utf-8"
     )
     (tmp_path / ".canopy").mkdir()
     return tmp_path
@@ -77,7 +77,7 @@ class TestLinearLookupSignal:
         ws = _setup_workspace(tmp_path)
         (ws / ".canopy" / "mcps.json").write_text(json.dumps(
             {"linear": {"command": "echo"}},
-        ))
+        ), encoding="utf-8")
 
         with patch(
             "canopy.integrations.linear.get_issue",
@@ -100,7 +100,7 @@ class TestLinearLookupSignal:
         ws = _setup_workspace(tmp_path)
         (ws / ".canopy" / "mcps.json").write_text(json.dumps(
             {"linear": {"command": "echo"}},
-        ))
+        ), encoding="utf-8")
 
         with patch(
             "canopy.integrations.linear.get_issue",
@@ -120,7 +120,7 @@ class TestLinearLookupSignal:
         ws = _setup_workspace(tmp_path)
         (ws / ".canopy" / "mcps.json").write_text(json.dumps(
             {"linear": {"command": "echo"}},
-        ))
+        ), encoding="utf-8")
 
         with patch(
             "canopy.integrations.linear.get_issue",
@@ -136,7 +136,7 @@ class TestLinearLookupSignal:
         ws = _setup_workspace(tmp_path)
         (ws / ".canopy" / "mcps.json").write_text(json.dumps(
             {"linear": {"command": "echo"}},
-        ))
+        ), encoding="utf-8")
 
         with patch(
             "canopy.integrations.linear.get_issue",

@@ -40,7 +40,7 @@ def read_state(workspace_root: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     try:
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
 
@@ -64,7 +64,7 @@ def record_result(
         "summary": summary,
     }
     tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(state, indent=2))
+    tmp.write_text(json.dumps(state, indent=2), encoding="utf-8")
     tmp.replace(path)
 
 

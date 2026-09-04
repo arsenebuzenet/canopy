@@ -76,7 +76,7 @@ def test_read_returns_none_when_json_broken(canopy_toml):
     ws = Workspace(load_config(canopy_toml))
     path = canopy_toml / ".canopy" / "state" / "slots.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("{not valid json")
+    path.write_text("{not valid json", encoding="utf-8")
     assert slots.read_state(ws) is None
 
 

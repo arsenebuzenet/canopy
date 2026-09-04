@@ -38,7 +38,7 @@ def test_dirty_wip_means_warm_even_without_pr(canopy_toml_for_workspace):
     root = canopy_toml_for_workspace
     subprocess.run(["git", "checkout", "auth-flow"], cwd=root / "repo-a",
                    check=True, capture_output=True)
-    (root / "repo-a" / "wip.txt").write_text("uncommitted\n")
+    (root / "repo-a" / "wip.txt").write_text("uncommitted\n", encoding="utf-8")
     assert warm_or_cold(_ws(root), "auth-flow") == "warm"
 
 

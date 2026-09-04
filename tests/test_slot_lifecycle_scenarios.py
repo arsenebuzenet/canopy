@@ -77,7 +77,7 @@ def test_preflight_aggregates_all_repo_issues_before_mutation(
     # Hold an index.lock in repo-b so preflight must fail — and assert NO
     # mutation happened (X still canonical, no in_flight).
     lock = ws.config.root / "repo-b" / ".git" / "index.lock"
-    lock.write_text("")
+    lock.write_text("", encoding="utf-8")
     try:
         with pytest.raises(BlockerError) as e:
             switch(ws, "Y")

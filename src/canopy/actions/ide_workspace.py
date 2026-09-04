@@ -37,7 +37,7 @@ def render_code_workspace(
         ide_settings = state.config.ide_settings if state else {}
         folder: dict = {
             "name": f"{repo_name} ({feature_name})",
-            "path": str(path),
+            "path": Path(path).as_posix(),
         }
         if ide_settings:
             folder["settings"] = dict(ide_settings)

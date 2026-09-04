@@ -27,7 +27,7 @@ path = "repo-a"
 [[repos]]
 name = "repo-b"
 path = "repo-b"
-""")
+""", encoding="utf-8")
     # workspace_with_feature leaves repos on auth-flow branch.
     # Check out main so the branch is free for `git worktree add`.
     for repo in ("repo-a", "repo-b"):
@@ -51,7 +51,7 @@ path = "repo-b"
         "per_repo_paths": {},
         "previous_feature": None,
         "last_touched": {"auth-flow": "2026-05-26T14:00:00Z"},
-    }))
+    }), encoding="utf-8")
     return root
 
 
@@ -78,19 +78,19 @@ def test_migrate_moves_feature_dirs_to_slots(workspace_v2_layout):
     assert not (workspace_v2_layout / ".canopy/state/active_feature.json").exists()
 
     # canopy.toml should have slots, not max_worktrees
-    toml_text = (workspace_v2_layout / "canopy.toml").read_text()
+    toml_text = (workspace_v2_layout / "canopy.toml").read_text(encoding="utf-8")
     assert "max_worktrees" not in toml_text
     assert "slots = " in toml_text
 
     # Result shape
     assert "moved" in result
-    assert any("auth-flow/repo-a" in m["from"] for m in result["moved"])
+    assert any("auth-flow/repo-a" in Path(m["from"]).as_posix() for m in result["moved"])
     assert result["slots"]["worktree-1"] == "auth-flow"
 
 
 def test_migrate_refuses_if_slots_json_exists(workspace_v2_layout):
     (workspace_v2_layout / ".canopy/state").mkdir(parents=True, exist_ok=True)
-    (workspace_v2_layout / ".canopy/state/slots.json").write_text("{}")
+    (workspace_v2_layout / ".canopy/state/slots.json").write_text("{}", encoding="utf-8")
     from canopy.actions.migrate_slots import migrate, AlreadyMigratedError
     with pytest.raises(AlreadyMigratedError):
         migrate(workspace_v2_layout)

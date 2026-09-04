@@ -27,7 +27,6 @@ Missing slot dirs → silently drop from the returned state.
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import json
 import os
 import tempfile
@@ -36,6 +35,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .. import compat
 from ..workspace.workspace import Workspace
 
 
@@ -106,7 +106,7 @@ def read_state(workspace: Workspace) -> SlotState | None:
     if not path.exists():
         return None
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
     if not isinstance(data, dict):
@@ -184,12 +184,12 @@ def _slots_lock(workspace: Workspace):
     """
     lock_path = _state_path(workspace).parent / "slots.lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    f = open(lock_path, "w")
+    f = open(lock_path, "w", encoding="utf-8")
     try:
-        fcntl.flock(f, fcntl.LOCK_EX)
+        compat.lock(f)
         yield
     finally:
-        fcntl.flock(f, fcntl.LOCK_UN)
+        compat.unlock(f)
         f.close()
 
 
@@ -204,7 +204,7 @@ def write_state(workspace: Workspace, state: SlotState) -> None:
     )
     tmp = Path(tmp_name)
     try:
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(json.dumps(state.to_dict(), indent=2))
         os.replace(tmp, path)
     except BaseException:

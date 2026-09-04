@@ -31,7 +31,7 @@ def _git(args: list[str], cwd: Path) -> str:
     """Run a git command in a directory."""
     result = subprocess.run(
         ["git"] + args,
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True, text=True, encoding="utf-8", cwd=cwd,
         env={**os.environ, "GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "test@test.com",
              "GIT_COMMITTER_NAME": "Test", "GIT_COMMITTER_EMAIL": "test@test.com"},
     )
@@ -50,7 +50,7 @@ def _create_repo(path: Path, files: dict[str, str], branch: str = "main") -> Non
     for filename, content in files.items():
         filepath = path / filename
         filepath.parent.mkdir(parents=True, exist_ok=True)
-        filepath.write_text(content)
+        filepath.write_text(content, encoding="utf-8")
 
     _git(["add", "."], cwd=path)
     _git(["commit", "-m", "Initial commit"], cwd=path)
@@ -103,10 +103,10 @@ def workspace_with_feature(workspace_dir):
     # Create feature branch in api with changes
     _git(["checkout", "-b", "auth-flow"], cwd=api)
     (api / "src" / "auth.py").write_text(
-        "import jwt\n\ndef authenticate(token):\n    return jwt.decode(token)\n"
+        "import jwt\n\ndef authenticate(token):\n    return jwt.decode(token)\n", encoding="utf-8"
     )
     (api / "src" / "models.py").write_text(
-        "class User:\n    name: str\n    email: str\n    token: str\n"
+        "class User:\n    name: str\n    email: str\n    token: str\n", encoding="utf-8"
     )
     _git(["add", "."], cwd=api)
     _git(["commit", "-m", "Add auth module"], cwd=api)
@@ -114,10 +114,10 @@ def workspace_with_feature(workspace_dir):
     # Create feature branch in ui with changes
     _git(["checkout", "-b", "auth-flow"], cwd=ui)
     (ui / "src" / "Login.tsx").write_text(
-        "export default function Login() { return <form>Login</form> }\n"
+        "export default function Login() { return <form>Login</form> }\n", encoding="utf-8"
     )
     (ui / "src" / "types.ts").write_text(
-        "export interface User { name: string; email: string; token: string; }\n"
+        "export interface User { name: string; email: string; token: string; }\n", encoding="utf-8"
     )
     _git(["add", "."], cwd=ui)
     _git(["commit", "-m", "Add login page and update types"], cwd=ui)
@@ -144,7 +144,7 @@ path = "./repo-b"
 role = "frontend"
 lang = "typescript"
 """
-    (workspace_dir / "canopy.toml").write_text(toml_content)
+    (workspace_dir / "canopy.toml").write_text(toml_content, encoding="utf-8")
     return workspace_dir
 
 
@@ -168,7 +168,7 @@ install_cmd = "true"
 [[repos]]
 name = "repo-b"
 path = "repo-b"
-""")
+""", encoding="utf-8")
     return workspace_with_feature
 
 
