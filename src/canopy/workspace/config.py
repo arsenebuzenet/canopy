@@ -216,9 +216,9 @@ def _parse_config(data: dict[str, Any], root: Path) -> WorkspaceConfig:
         if not isinstance(entry, dict) or "path" not in entry:
             raise ConfigError(f"[[externals]] entry {i} missing 'path'")
         ext = make_external(root, entry["path"], entry.get("name"))
-        if ext.name in seen_ext:
+        if ext.name.casefold() in seen_ext:
             raise ConfigError(f"Duplicate external name: '{ext.name}'")
-        seen_ext.add(ext.name)
+        seen_ext.add(ext.name.casefold())
         externals.append(ext)
 
     if "max_worktrees" in workspace:

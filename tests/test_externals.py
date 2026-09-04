@@ -95,6 +95,27 @@ name = "dup"
         load_config(root)
 
 
+def test_load_config_rejects_duplicate_external_name_case_insensitive(tmp_path):
+    root = tmp_path / "ws"
+    root.mkdir()
+    (root / "canopy.toml").write_text("""
+[workspace]
+name = "t"
+
+[[repos]]
+name = "repo-a"
+path = "repo-a"
+
+[[externals]]
+path = "../Foo"
+
+[[externals]]
+path = "../foo"
+""", encoding="utf-8")
+    with pytest.raises(ConfigError, match="Duplicate external name"):
+        load_config(root)
+
+
 def test_load_config_rejects_external_without_path(tmp_path):
     root = tmp_path / "ws"
     root.mkdir()
