@@ -22,6 +22,7 @@ AGENT_CORE = [
     "actions/stash.py", "actions/pr_map.py", "actions/repo_paths.py",
     "actions/ide_workspace.py", "actions/preflight_state.py",
     "actions/start.py", "actions/join.py", "actions/doctor.py",
+    "actions/externals.py",
     "features/coordinator.py", "agent/runner.py",
 ]
 

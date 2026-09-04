@@ -132,3 +132,114 @@ name = "x"
 """, encoding="utf-8")
     with pytest.raises(ConfigError, match=r"\[\[externals\]\] entry 0 missing 'path'"):
         load_config(root)
+
+
+# ── actions/externals ────────────────────────────────────────────────
+
+from canopy import compat
+from canopy.actions.errors import BlockerError
+from canopy.workspace.workspace import Workspace
+
+
+@pytest.fixture
+def workspace_with_external(canopy_toml_for_workspace):
+    """workspace_with_feature + a sibling dir <tmp>/ext-lib declared as an external."""
+    root = canopy_toml_for_workspace
+    ext_dir = root.parent / "ext-lib"
+    (ext_dir / "pkg").mkdir(parents=True)
+    (ext_dir / "pkg" / "lib.txt").write_text("lib", encoding="utf-8")
+    toml = root / "canopy.toml"
+    toml.write_text(toml.read_text(encoding="utf-8") + """
+[[externals]]
+path = "../ext-lib"
+""", encoding="utf-8")
+    return Workspace(load_config(root))
+
+
+def _ext(ws: Workspace):
+    return ws.config.externals[0]
+
+
+def test_status_missing_when_nothing_at_link(workspace_with_external):
+    from canopy.actions.externals import external_status
+    (st,) = external_status(workspace_with_external)
+    assert st["name"] == "ext-lib"
+    assert st["state"] == "missing"
+    assert _norm(Path(st["link"])) == _norm(_ext(workspace_with_external).link)
+
+
+def test_ensure_creates_link_and_reports_ok(workspace_with_external):
+    from canopy.actions.externals import ensure_external_links, external_status
+    out = ensure_external_links(workspace_with_external)
+    assert out[0]["state"] == "ok"
+    link = _ext(workspace_with_external).link
+    assert compat.is_dir_link(link)
+    assert (link / "pkg" / "lib.txt").read_text(encoding="utf-8") == "lib"
+    assert external_status(workspace_with_external)[0]["state"] == "ok"
+
+
+def test_ensure_is_idempotent(workspace_with_external):
+    from canopy.actions.externals import ensure_external_links
+    ensure_external_links(workspace_with_external)
+    ensure_external_links(workspace_with_external)
+    assert compat.is_dir_link(_ext(workspace_with_external).link)
+
+
+def test_status_stale_and_ensure_recreates(workspace_with_external, tmp_path):
+    from canopy.actions.externals import ensure_external_links, external_status
+    ext = _ext(workspace_with_external)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    ext.link.parent.mkdir(parents=True, exist_ok=True)
+    compat.make_dir_link(ext.link, elsewhere)
+    assert external_status(workspace_with_external)[0]["state"] == "stale"
+    ensure_external_links(workspace_with_external)
+    assert compat.same_path(compat.read_dir_link(ext.link), ext.target)
+    assert elsewhere.is_dir()
+
+
+def test_status_shadowed_and_ensure_raises(workspace_with_external):
+    from canopy.actions.externals import ensure_external_links, external_status
+    ext = _ext(workspace_with_external)
+    ext.link.mkdir(parents=True)
+    assert external_status(workspace_with_external)[0]["state"] == "shadowed"
+    with pytest.raises(BlockerError) as e:
+        ensure_external_links(workspace_with_external)
+    assert e.value.code == "external_link_shadowed"
+    assert e.value.details["name"] == "ext-lib"
+
+
+def test_status_target_missing_and_ensure_raises(workspace_with_external):
+    import shutil
+    from canopy.actions.externals import ensure_external_links, external_status
+    shutil.rmtree(_ext(workspace_with_external).target)
+    assert external_status(workspace_with_external)[0]["state"] == "target_missing"
+    with pytest.raises(BlockerError) as e:
+        ensure_external_links(workspace_with_external)
+    assert e.value.code == "external_target_missing"
+
+
+def test_ensure_names_filter_skips_others(workspace_with_external, tmp_path):
+    """A broken external must not block repairing a different one."""
+    import shutil
+    from canopy.actions.externals import ensure_external_links
+    root = workspace_with_external.config.root
+    other = root.parent / "other-lib"
+    other.mkdir()
+    toml = root / "canopy.toml"
+    toml.write_text(toml.read_text(encoding="utf-8") + """
+[[externals]]
+path = "../other-lib"
+""", encoding="utf-8")
+    ws = Workspace(load_config(root))
+    shutil.rmtree(ws.config.externals[0].target)  # ext-lib gone
+    out = ensure_external_links(ws, names=["other-lib"])
+    assert [o["name"] for o in out] == ["other-lib"]
+    assert out[0]["state"] == "ok"
+
+
+def test_no_externals_is_a_noop(workspace_with_canonical_only):
+    from canopy.actions.externals import ensure_external_links, external_status
+    assert external_status(workspace_with_canonical_only) == []
+    assert ensure_external_links(workspace_with_canonical_only) == []
+    assert not (workspace_with_canonical_only.config.root / ".canopy" / "worktrees").exists()
