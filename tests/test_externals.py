@@ -243,3 +243,55 @@ def test_no_externals_is_a_noop(workspace_with_canonical_only):
     assert external_status(workspace_with_canonical_only) == []
     assert ensure_external_links(workspace_with_canonical_only) == []
     assert not (workspace_with_canonical_only.config.root / ".canopy" / "worktrees").exists()
+
+
+# ── slot_load / switch ───────────────────────────────────────────────
+
+def _make_canonical(ws_root: Path) -> Workspace:
+    """Same setup as the workspace_with_canonical_only fixture, on a workspace that has an external."""
+    import subprocess
+    from canopy.actions import slots as sm
+    ws = Workspace(load_config(ws_root))
+    for repo in ("repo-a", "repo-b"):
+        subprocess.run(["git", "branch", "X"], cwd=ws_root / repo, check=True)
+        subprocess.run(["git", "checkout", "X"], cwd=ws_root / repo, check=True)
+        subprocess.run(["git", "branch", "Y"], cwd=ws_root / repo, check=True)
+    sm.write_state(ws, sm.SlotState(
+        slot_count=2,
+        canonical=sm.CanonicalEntry(
+            feature="X", activated_at=sm.now_iso(),
+            per_repo_paths={r: str(ws_root / r) for r in ("repo-a", "repo-b")},
+        ),
+    ))
+    return ws
+
+
+def test_slot_load_plants_external_link(workspace_with_external):
+    from canopy.actions.slot_load import slot_load
+    ws = _make_canonical(workspace_with_external.config.root)
+    result = slot_load(ws, "Y")
+    slot_repo = Path(result["per_repo"][0]["worktree_path"])
+    # repo-a → worktree-1 → worktrees → ext-lib : the same ../../ext-lib a canonical repo uses
+    via_slot = (slot_repo / ".." / ".." / "ext-lib" / "pkg" / "lib.txt")
+    assert via_slot.read_text(encoding="utf-8") == "lib"
+
+
+def test_switch_plants_external_link(workspace_with_external):
+    from canopy.actions.switch import switch
+    ws = _make_canonical(workspace_with_external.config.root)
+    switch(ws, "Y", evict_to="worktree-1")  # X evacuates into worktree-1
+    link = ws.config.externals[0].link
+    assert compat.is_dir_link(link)
+    assert (ws.config.root / ".canopy" / "worktrees" / "worktree-1" / "repo-a"
+            / ".." / ".." / "ext-lib" / "pkg" / "lib.txt").read_text(encoding="utf-8") == "lib"
+
+
+def test_slot_load_blocks_when_external_target_missing(workspace_with_external):
+    import shutil
+    from canopy.actions.slot_load import slot_load
+    ws = _make_canonical(workspace_with_external.config.root)
+    shutil.rmtree(ws.config.externals[0].target)
+    with pytest.raises(BlockerError) as e:
+        slot_load(ws, "Y")
+    assert e.value.code == "external_target_missing"
+    assert not (ws.config.root / ".canopy" / "worktrees" / "worktree-1").exists()

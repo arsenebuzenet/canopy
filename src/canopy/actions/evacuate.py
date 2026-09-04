@@ -31,6 +31,7 @@ from typing import Any
 from ..git import repo as git
 from ..workspace.workspace import Workspace
 from .errors import BlockerError
+from .externals import ensure_external_links
 from . import slots as slots_mod
 
 
@@ -104,6 +105,7 @@ def evacuate_repo(
     )
     if target_branch_checkout:
         git.checkout(repo_path, target_branch)
+    ensure_external_links(workspace)
     dest = slots_mod.slot_worktree_path(workspace, slot_id, repo_name)
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists():

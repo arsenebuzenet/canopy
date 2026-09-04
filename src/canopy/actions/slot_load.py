@@ -12,6 +12,7 @@ from ..git import repo as git
 from ..workspace.workspace import Workspace
 from .aliases import resolve_feature, repos_for_feature
 from .errors import BlockerError, FixAction
+from .externals import ensure_external_links
 from . import slots as slots_mod
 
 
@@ -159,6 +160,10 @@ def slot_load(
             ),
             details={"feature": feature_name},
         )
+    # Links first: a slot whose repos cannot resolve their siblings is not
+    # loadable, and a BlockerError here leaves no half-built slot behind.
+    ensure_external_links(workspace)
+
     per_repo: list[dict] = []
     for repo_name, branch in repo_branches.items():
         try:
