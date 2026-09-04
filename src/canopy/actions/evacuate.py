@@ -100,12 +100,14 @@ def evacuate_repo(
     Returns ``{repo, status, stashed, stash_ref, worktree_path, slot_id,
     target_branch, popped}``. Raises ``BlockerError`` on failure.
     """
+    # Externals checked before any git mutation, so a BlockerError here
+    # leaves the repo untouched.
+    ensure_external_links(workspace)
     stash_ref = stash_for_evacuation(
         workspace, feature_being_evacuated, repo_name, repo_path,
     )
     if target_branch_checkout:
         git.checkout(repo_path, target_branch)
-    ensure_external_links(workspace)
     dest = slots_mod.slot_worktree_path(workspace, slot_id, repo_name)
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists():

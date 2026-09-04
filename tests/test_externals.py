@@ -295,3 +295,29 @@ def test_slot_load_blocks_when_external_target_missing(workspace_with_external):
         slot_load(ws, "Y")
     assert e.value.code == "external_target_missing"
     assert not (ws.config.root / ".canopy" / "worktrees" / "worktree-1").exists()
+
+
+def test_switch_blocks_before_mutation_when_external_target_missing(workspace_with_external):
+    import shutil
+    import subprocess
+    from canopy.actions import slots as sm
+    from canopy.actions.switch import switch
+    ws = _make_canonical(workspace_with_external.config.root)
+    shutil.rmtree(ws.config.externals[0].target)
+    with pytest.raises(BlockerError) as e:
+        switch(ws, "Y", evict_to="worktree-1")
+    assert e.value.code == "external_target_missing"
+
+    repo_a = ws.config.root / "repo-a"
+    branch = subprocess.run(
+        ["git", "branch", "--show-current"],
+        cwd=repo_a, capture_output=True, text=True, encoding="utf-8", check=True,
+    ).stdout.strip()
+    assert branch == "X"
+    stash_list = subprocess.run(
+        ["git", "stash", "list"],
+        cwd=repo_a, capture_output=True, text=True, encoding="utf-8", check=True,
+    ).stdout.strip()
+    assert stash_list == ""
+    assert not (ws.config.root / ".canopy" / "worktrees" / "worktree-1").exists()
+    assert sm.read_state(ws).in_flight is None
