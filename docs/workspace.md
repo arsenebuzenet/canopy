@@ -120,6 +120,36 @@ else is optional and mostly auto-detected by `canopy init`.
 | `install_cmd` | string | `""` | Worktree bootstrap: deps install command (e.g. `"pnpm install"`). Short-circuited by lockfile fingerprint (see `deps_fingerprints.json`). |
 | `ide_settings` | table | `{}` | Worktree bootstrap: per-repo settings merged into the generated `.code-workspace`. |
 
+### `[[externals]]`
+
+Directories your repos reference by relative path (`..\..\lib\lib.csproj`) but
+that canopy must not manage: no branch per feature, no worktree, often no push
+rights. canopy links them so the same relative reference resolves from a repo
+inside a warm slot.
+
+```toml
+[[externals]]
+path = "../v2.jr.core"      # required — relative to the workspace root
+name = "v2.jr.core"         # optional — defaults to the last path component
+```
+
+| Key | Type | Default | Notes |
+|---|---|---|---|
+| `path` | string | — | Required. Must resolve **outside** the workspace root. |
+| `name` | string | last path component | Identifier in `doctor` / `context` output. Unique. |
+
+**Geometry.** A repo at `<root>/api` sits at `<root>/.canopy/worktrees/worktree-N/api`
+in a slot: one level deeper, mirrored below `worktree-N`. Any reference that
+climbs above the repo therefore lands next to the slot dirs — `../lib` from the
+root becomes `.canopy/worktrees/lib` — and the slot id cancels out, so one link
+serves every slot. The link is a junction on Windows (no admin rights) and a
+symlink elsewhere. It is created on the first `slot load` / `switch` that
+populates a slot, and repaired by `canopy doctor --fix-category externals`.
+`context` lists each external with its `state` (`ok`, `missing`, `stale`,
+`shadowed`, `target_missing`).
+
+`canopy init` does not detect externals; add the block by hand.
+
 ### `[issue_provider]`
 
 Selects which issue tracker backs feature linking, `canopy switch <issue>`, and

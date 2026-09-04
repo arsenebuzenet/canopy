@@ -49,7 +49,8 @@ src/canopy/
 │   ├── prs_cache.py         # PR overlay cache for the remote tier
 │   ├── repo_paths.py        # NEW 4.0: resolve_repo_paths (core path helper)
 │   ├── active.py / advisories.py   # active-feature resolution; advisory surfacing
-│   ├── doctor.py            # 21-code recovery primitive
+│   ├── externals.py         # [[externals]] link status + ensure (siblings resolvable from slots)
+│   ├── doctor.py            # 25-code recovery primitive
 │   └── hook_gate.py / hook_context.py   # NEW 4.0: Claude Code enforcement hooks (PreToolUse git gate + SessionStart brief)
 ├── management/              # NEW 4.0: quarantined HUMAN/dashboard surface — CLI --json only, NO MCP
 │   ├── review_ops.py        # review_status/comments/prep (extracted from coordinator)
@@ -141,7 +142,7 @@ Meta:          version                                  # version handshake for 
 Registry:      context, start, join                     # single-read workspace map; lazy feature start; register a repo
 Focus / slots: switch, reclaim                          # promote a feature into trunk (run target); free a merged warm slot
 Safe git ops:  run, commit, push, preflight             # path-safe exec; feature-scoped commit (commit-only); push; pre-commit gate
-Recovery:      doctor, drift                            # 21-code / 11-category integrity check + repair; branch-drift detection
+Recovery:      doctor, drift                            # 25-code / 12-category integrity check + repair; branch-drift detection
 WIP + workable slots:   stash_save_feature, stash_pop_feature, worktree_bootstrap   # feature-tagged stash; bootstrap a warm slot
 ```
 

@@ -6,7 +6,7 @@ across machines — this module diagnoses and (optionally) repairs.
 
 Two flavors of check, same shape:
 
-  * **State-integrity** (10 categories): the workspace's own bookkeeping —
+  * **State-integrity** (9 categories): the workspace's own bookkeeping —
     ``heads.json``, ``active_feature.json``, ``preflight.json``,
     ``features.json``, ``.canopy/worktrees/``, per-repo post-checkout hooks,
     branch existence per feature.
