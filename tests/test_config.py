@@ -272,3 +272,44 @@ path = "a"
     (tmp_path / "a").mkdir()
     with pytest.raises(ConfigError, match=r"max_worktrees was renamed to `slots`"):
         load_config(tmp_path)
+
+
+# ── [workspace] env_files ─────────────────────────────────────────────
+
+def _ws_toml(tmp_path, workspace_block: str):
+    (tmp_path / "canopy.toml").write_text(f"""
+[workspace]
+name = "ws"
+{workspace_block}
+
+[[repos]]
+name = "a"
+path = "a"
+""", encoding="utf-8")
+    (tmp_path / "a").mkdir(exist_ok=True)
+    return tmp_path
+
+
+def test_workspace_env_files_parses(tmp_path):
+    cfg = load_config(_ws_toml(tmp_path, 'env_files = ["spaces.ini", "cfg/local.txt"]'))
+    assert cfg.env_files == ["spaces.ini", "cfg/local.txt"]
+
+
+def test_workspace_env_files_default_empty(tmp_path):
+    cfg = load_config(_ws_toml(tmp_path, ""))
+    assert cfg.env_files == []
+
+
+def test_workspace_env_files_rejects_non_list(tmp_path):
+    with pytest.raises(ConfigError, match=r"\[workspace\] env_files"):
+        load_config(_ws_toml(tmp_path, 'env_files = "spaces.ini"'))
+
+
+def test_workspace_env_files_rejects_absolute(tmp_path):
+    with pytest.raises(ConfigError, match=r"\[workspace\] env_files"):
+        load_config(_ws_toml(tmp_path, 'env_files = ["/etc/spaces.ini"]'))
+
+
+def test_workspace_env_files_rejects_climbing_above_root(tmp_path):
+    with pytest.raises(ConfigError, match=r"\[workspace\] env_files"):
+        load_config(_ws_toml(tmp_path, 'env_files = ["../spaces.ini"]'))

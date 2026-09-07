@@ -338,3 +338,79 @@ def test_spawn_deps_background_uses_platform_detach(monkeypatch, workspace_with_
     slot_bootstrap._spawn_deps_background(ws, "auth-flow", "worktree-1")
     for k, v in compat.detached_popen_kwargs().items():
         assert seen[k] == v
+
+
+# ── [workspace] env_files → slot root ─────────────────────────────────
+
+def _reload_with_workspace_env_files(ws, files):
+    """Re-read the fixture's canopy.toml with ``[workspace] env_files`` set."""
+    toml = ws.config.root / "canopy.toml"
+    body = toml.read_text(encoding="utf-8").replace(
+        "[workspace]\n", f"[workspace]\nenv_files = {json.dumps(files)}\n", 1,
+    )
+    toml.write_text(body, encoding="utf-8")
+    return Workspace(load_config(ws.config.root))
+
+
+def test_bootstrap_workspace_files_copies_into_slot_root(workspace_with_slots):
+    from canopy.actions import slots as sm
+    from canopy.actions.bootstrap import bootstrap_workspace_files
+    ws = _reload_with_workspace_env_files(workspace_with_slots, ["spaces.ini"])
+    (ws.config.root / "spaces.ini").write_text("ENV_MODE=DEV\n", encoding="utf-8")
+    sid = sm.slot_for_feature(ws, "Y")
+
+    result = bootstrap_workspace_files(ws, sid)
+
+    assert result["status"] == "ok"
+    assert result["files_copied"] == ["spaces.ini"]
+    slot_root = sm.slot_worktree_path(ws, sid, "repo-a").parent
+    assert (slot_root / "spaces.ini").read_text(encoding="utf-8") == "ENV_MODE=DEV\n"
+
+
+def test_bootstrap_workspace_files_skipped_when_unconfigured(workspace_with_slots):
+    from canopy.actions import slots as sm
+    from canopy.actions.bootstrap import bootstrap_workspace_files
+    ws = workspace_with_slots
+    sid = sm.slot_for_feature(ws, "Y")
+
+    result = bootstrap_workspace_files(ws, sid)
+
+    assert result["status"] == "skipped"
+    assert result["reason"] == "no env_files configured"
+
+
+def test_bootstrap_feature_reports_workspace_env(workspace_with_slots, monkeypatch):
+    from canopy.actions import slots as sm
+    monkeypatch.setenv("CANOPY_NO_BG_BOOTSTRAP", "1")
+    ws = _reload_with_workspace_env_files(workspace_with_slots, ["spaces.ini"])
+    (ws.config.root / "spaces.ini").write_text("ENV_MODE=DEV\n", encoding="utf-8")
+    sid = sm.slot_for_feature(ws, "Y")
+
+    result = bootstrap_feature(ws, "Y", steps=["env"])
+
+    assert result["workspace_env"]["files_copied"] == ["spaces.ini"]
+    slot_root = sm.slot_worktree_path(ws, sid, "repo-a").parent
+    assert (slot_root / "spaces.ini").exists()
+
+
+def test_bootstrap_feature_workspace_env_skipped_without_env_step(workspace_with_slots):
+    ws = _reload_with_workspace_env_files(workspace_with_slots, ["spaces.ini"])
+    (ws.config.root / "spaces.ini").write_text("ENV_MODE=DEV\n", encoding="utf-8")
+
+    result = bootstrap_feature(ws, "Y", steps=["ide"])
+
+    assert result["workspace_env"] == {"status": "skipped", "files_copied": []}
+
+
+def test_bootstrap_feature_force_overwrites_workspace_env(workspace_with_slots):
+    from canopy.actions import slots as sm
+    ws = _reload_with_workspace_env_files(workspace_with_slots, ["spaces.ini"])
+    (ws.config.root / "spaces.ini").write_text("NEW\n", encoding="utf-8")
+    sid = sm.slot_for_feature(ws, "Y")
+    slot_root = sm.slot_worktree_path(ws, sid, "repo-a").parent
+    (slot_root / "spaces.ini").write_text("OLD\n", encoding="utf-8")
+
+    assert bootstrap_feature(ws, "Y", steps=["env"])["workspace_env"]["files_skipped"] == ["spaces.ini"]
+    assert (slot_root / "spaces.ini").read_text(encoding="utf-8") == "OLD\n"
+    bootstrap_feature(ws, "Y", steps=["env"], force=True)
+    assert (slot_root / "spaces.ini").read_text(encoding="utf-8") == "NEW\n"

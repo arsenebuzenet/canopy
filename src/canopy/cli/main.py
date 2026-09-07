@@ -2900,6 +2900,12 @@ def cmd_worktree_bootstrap(args: argparse.Namespace) -> None:
         elif deps.get("reason"):
             deps_extra = f"  [muted]{deps['reason']}[/]"
         console.print(f"      deps {deps_glyph}{deps_extra}")
+    ws_env = result.get("workspace_env", {})
+    if ws_env.get("status") not in (None, "skipped"):
+        ws_glyph = {"ok": "[success]✓[/]", "missing_source": "[warning]·[/]"}.get(ws_env["status"], "?")
+        ws_copied = ws_env.get("files_copied", [])
+        ws_summary = f"{len(ws_copied)} file(s)" if ws_copied else ws_env["status"]
+        console.print(f"\n    workspace env {ws_glyph}  {ws_summary}")
     ide = result["ide"]
     ide_glyph = {"ok": "[success]✓[/]", "skipped": "[muted]·[/]",
                  "no_ide_configured": "[muted]·[/]"}.get(ide["status"], "?")

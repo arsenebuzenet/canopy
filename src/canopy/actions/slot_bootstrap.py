@@ -33,6 +33,10 @@ def bootstrap_on_slot_create(workspace: Workspace, feature: str, sid: str) -> No
         except Exception:
             pass
     try:
+        bootstrap.bootstrap_workspace_files(workspace, sid)
+    except Exception:
+        pass  # same contract as the per-repo fast steps: never block the slot
+    try:
         _spawn_deps_background(workspace, feature, sid)
     except Exception:
         pass

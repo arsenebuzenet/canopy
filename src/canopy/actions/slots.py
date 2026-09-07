@@ -213,9 +213,14 @@ def write_state(workspace: Workspace, state: SlotState) -> None:
         raise
 
 
+def slot_dir(workspace: Workspace, slot_id: str) -> Path:
+    """Filesystem location of a slot — its repos sit directly inside."""
+    return _slots_root(workspace) / slot_id
+
+
 def slot_worktree_path(workspace: Workspace, slot_id: str, repo: str) -> Path:
     """Filesystem location of a slot's repo subdir."""
-    return _slots_root(workspace) / slot_id / repo
+    return slot_dir(workspace, slot_id) / repo
 
 
 def slot_for_feature(workspace: Workspace, feature: str) -> str | None:

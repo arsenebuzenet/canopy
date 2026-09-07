@@ -11,7 +11,7 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 
@@ -159,6 +159,10 @@ class WorkspaceConfig:
     # M6 — IDE workspace template + per-workspace bootstrap default.
     ide: str = "none"                   # "vscode" | "none" (default)
     bootstrap_default: bool = False     # if true, --bootstrap is implicit on create/warm
+    # Files outside any repo (relative to the workspace root) copied into the
+    # root of each warm slot, so a repo's `../<file>` reference resolves there
+    # the same way it does from the canonical checkout.
+    env_files: list[str] = field(default_factory=list)
     externals: list[ExternalConfig] = field(default_factory=list)
 
 
@@ -199,6 +203,29 @@ def _find_config() -> Path:
                 "No canopy.toml found in current directory or any parent."
             )
         current = parent
+
+
+def _parse_workspace_env_files(raw: Any) -> list[str]:
+    """Validate ``[workspace] env_files``: relative paths that stay under the root.
+
+    The destination is the slot dir itself, so a path climbing above the
+    root would land next to the slots (shared by all of them) instead of
+    inside one — reject it rather than copy somewhere surprising.
+    """
+    if raw is None:
+        return []
+    if not (isinstance(raw, list) and all(isinstance(p, str) and p for p in raw)):
+        raise ConfigError("[workspace] env_files must be a list of non-empty strings")
+    for rel in raw:
+        if rel.startswith(("/", "\\")) or PureWindowsPath(rel).drive:
+            raise ConfigError(
+                f"[workspace] env_files entry {rel!r} must be relative to the workspace root"
+            )
+        if ".." in Path(os.path.normpath(rel)).parts:
+            raise ConfigError(
+                f"[workspace] env_files entry {rel!r} climbs above the workspace root"
+            )
+    return list(raw)
 
 
 def _parse_config(data: dict[str, Any], root: Path) -> WorkspaceConfig:
@@ -289,6 +316,7 @@ def _parse_config(data: dict[str, Any], root: Path) -> WorkspaceConfig:
     if not isinstance(ide_choice, str):
         raise ConfigError(f"[workspace] ide must be a string, got {type(ide_choice).__name__}")
     bootstrap_default = bool(workspace.get("bootstrap_default", False))
+    ws_env_files = _parse_workspace_env_files(workspace.get("env_files"))
     issue_provider = _parse_issue_provider(data)
     augments = _parse_augments(data)
 
@@ -301,6 +329,7 @@ def _parse_config(data: dict[str, Any], root: Path) -> WorkspaceConfig:
         augments=augments,
         ide=ide_choice,
         bootstrap_default=bootstrap_default,
+        env_files=ws_env_files,
         externals=externals,
     )
 

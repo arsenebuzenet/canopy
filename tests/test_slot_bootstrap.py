@@ -49,3 +49,23 @@ def test_bootstrap_never_raises_on_slot_create(workspace_with_slots, monkeypatch
     monkeypatch.setattr(slot_bootstrap, "_spawn_deps_background", lambda *a: None)
     # must swallow the fast-step error, not raise
     slot_bootstrap.bootstrap_on_slot_create(workspace_with_slots, "Y", "worktree-1")
+
+
+def test_slot_create_copies_workspace_env_files(workspace_with_slots, monkeypatch):
+    from canopy.actions import slot_bootstrap, bootstrap
+    monkeypatch.setattr(bootstrap, "bootstrap_repo", lambda *a, **k: {"status": "ok"})
+    monkeypatch.setattr(slot_bootstrap, "_spawn_deps_background", lambda *a: None)
+    seen = []
+    monkeypatch.setattr(bootstrap, "bootstrap_workspace_files",
+                        lambda ws, sid, **k: seen.append(sid) or {"status": "ok"})
+    slot_bootstrap.bootstrap_on_slot_create(workspace_with_slots, "Y", "worktree-1")
+    assert seen == ["worktree-1"]      # once per slot, not once per repo
+
+
+def test_slot_create_survives_workspace_env_failure(workspace_with_slots, monkeypatch):
+    from canopy.actions import slot_bootstrap, bootstrap
+    monkeypatch.setattr(bootstrap, "bootstrap_repo", lambda *a, **k: {"status": "ok"})
+    monkeypatch.setattr(slot_bootstrap, "_spawn_deps_background", lambda *a: None)
+    monkeypatch.setattr(bootstrap, "bootstrap_workspace_files",
+                        lambda *a, **k: (_ for _ in ()).throw(OSError("disk")))
+    slot_bootstrap.bootstrap_on_slot_create(workspace_with_slots, "Y", "worktree-1")
