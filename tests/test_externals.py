@@ -357,6 +357,28 @@ def test_switch_plants_external_link(workspace_with_external):
             / ".." / ".." / "ext-lib" / "pkg" / "lib.txt").read_text(encoding="utf-8") == "lib"
 
 
+def test_feature_create_worktree_plants_external_link(workspace_with_external):
+    from canopy.features.coordinator import FeatureCoordinator
+    ws = workspace_with_external
+    FeatureCoordinator(ws).create("Z", use_worktrees=True)
+    slot_repo = ws.config.root / ".canopy" / "worktrees" / "worktree-1" / "repo-a"
+    assert (slot_repo / ".git").exists()
+    via_slot = slot_repo / ".." / ".." / "ext-lib" / "pkg" / "lib.txt"
+    assert via_slot.read_text(encoding="utf-8") == "lib"
+
+
+def test_feature_create_worktree_blocks_when_external_target_missing(workspace_with_external):
+    import shutil
+    from canopy.features.coordinator import FeatureCoordinator
+    ws = workspace_with_external
+    shutil.rmtree(ws.config.externals[0].target)
+    with pytest.raises(BlockerError) as e:
+        FeatureCoordinator(ws).create("Z", use_worktrees=True)
+    assert e.value.code == "external_target_missing"
+    assert not (ws.config.root / ".canopy" / "worktrees").exists()
+    assert "Z" not in [lane.name for lane in FeatureCoordinator(ws).list_active()]
+
+
 def test_slot_load_blocks_when_external_target_missing(workspace_with_external):
     import shutil
     from canopy.actions.slot_load import slot_load

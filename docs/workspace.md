@@ -151,9 +151,10 @@ creates a real `.canopy/worktrees/x` directory (not just a link) before linking
 `lib` inside it. A link may not land on a slot path (`../worktree-1`) or on one
 of canopy's own entries under `.canopy/` (`../../state`); both are rejected at
 load time. The link is a junction on Windows (no admin rights) and a symlink
-elsewhere. It is checked and created before `slot load` / `switch` mutate
-anything — an unresolvable external blocks the operation up front, before any
-occupant is evicted — and repaired by `canopy doctor --fix-category externals`.
+elsewhere. It is checked and created before `slot load` / `switch` /
+`feature create --worktree` mutate anything — an unresolvable external blocks
+the operation up front, before any occupant is evicted — and repaired by
+`canopy doctor --fix-category externals`.
 `context` lists each external with its `state` (`ok`, `missing`, `stale`,
 `shadowed`, `target_missing`).
 

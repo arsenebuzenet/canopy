@@ -17,6 +17,7 @@ from ..git import repo as git
 from ..git.multi import create_branch_all, cross_repo_diff, find_type_overlaps
 from ..providers import get_issue_provider
 from ..actions import slots as slots_mod
+from ..actions.externals import ensure_external_links
 
 # Default directory for worktrees, relative to workspace root. In Wave 3.0
 # this contains generic numbered slot dirs (worktree-1, worktree-2, ...)
@@ -186,6 +187,9 @@ class FeatureCoordinator:
                     limit=limit,
                     stale=stale,
                 )
+
+            # Siblings must resolve from the slot before any repo lands in it.
+            ensure_external_links(self.workspace)
 
             base = worktree_base or (self.workspace.config.root / _WORKTREE_DIR)
             feature_dir = base / allocated_slot
