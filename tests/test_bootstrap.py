@@ -414,3 +414,53 @@ def test_bootstrap_feature_force_overwrites_workspace_env(workspace_with_slots):
     assert (slot_root / "spaces.ini").read_text(encoding="utf-8") == "OLD\n"
     bootstrap_feature(ws, "Y", steps=["env"], force=True)
     assert (slot_root / "spaces.ini").read_text(encoding="utf-8") == "NEW\n"
+
+
+def test_clear_workspace_files_removes_the_copies(workspace_with_slots):
+    from canopy.actions import slots as sm
+    from canopy.actions.bootstrap import bootstrap_workspace_files, clear_workspace_files
+    ws = _reload_with_workspace_env_files(workspace_with_slots, ["spaces.ini"])
+    (ws.config.root / "spaces.ini").write_text("ENV_MODE=DEV\n", encoding="utf-8")
+    sid = sm.slot_for_feature(ws, "Y")
+    bootstrap_workspace_files(ws, sid)
+    slot_root = sm.slot_dir(ws, sid)
+
+    removed = clear_workspace_files(ws, sid)
+
+    assert removed == ["spaces.ini"]
+    assert not (slot_root / "spaces.ini").exists()
+
+
+def test_clear_workspace_files_prunes_the_dirs_it_created(workspace_with_slots):
+    from canopy.actions import slots as sm
+    from canopy.actions.bootstrap import bootstrap_workspace_files, clear_workspace_files
+    ws = _reload_with_workspace_env_files(workspace_with_slots, ["conf/local/app.ini"])
+    src = ws.config.root / "conf" / "local" / "app.ini"
+    src.parent.mkdir(parents=True)
+    src.write_text("x\n", encoding="utf-8")
+    sid = sm.slot_for_feature(ws, "Y")
+    bootstrap_workspace_files(ws, sid)
+    slot_root = sm.slot_dir(ws, sid)
+
+    clear_workspace_files(ws, sid)
+
+    assert not (slot_root / "conf").exists()
+    assert slot_root.is_dir()
+
+
+def test_clear_workspace_files_tolerates_a_missing_copy(workspace_with_slots):
+    from canopy.actions import slots as sm
+    from canopy.actions.bootstrap import clear_workspace_files
+    ws = _reload_with_workspace_env_files(workspace_with_slots, ["spaces.ini"])
+    sid = sm.slot_for_feature(ws, "Y")
+
+    assert clear_workspace_files(ws, sid) == []
+
+
+def test_clear_workspace_files_skipped_when_unconfigured(workspace_with_slots):
+    from canopy.actions import slots as sm
+    from canopy.actions.bootstrap import clear_workspace_files
+    ws = workspace_with_slots
+    sid = sm.slot_for_feature(ws, "Y")
+
+    assert clear_workspace_files(ws, sid) == []

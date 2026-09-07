@@ -14,6 +14,8 @@ Versions follow semver. Pre-1.0 — minor bumps may add features or break behavi
   the `env` bootstrap step — on slot creation and via `worktree-bootstrap` —
   and reports as `workspace_env` in the result. Paths must stay under the
   root (absolute paths and `..` are rejected at load time).
+  `feature done` deletes the copies before removing the slot dir, so a
+  copied file can't outlive the worktrees as a `slot_dir_orphan`.
 
 ## 4.0.0-rc3 — 2026-09-04 (Externals)
 

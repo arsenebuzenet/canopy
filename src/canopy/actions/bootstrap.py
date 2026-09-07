@@ -122,6 +122,35 @@ def bootstrap_workspace_files(
     return _copy_env_files(env_files, workspace.config.root, slot_dir, force=force)
 
 
+def clear_workspace_files(workspace: Workspace, slot_id: str) -> list[str]:
+    """Remove this slot's copies of ``[workspace] env_files``.
+
+    Slot teardown ends with ``rmdir`` on the slot dir, which only succeeds
+    while it is empty. A copy left at its root would outlive the worktrees
+    and turn the slot into a permanent ``slot_dir_orphan``.
+    """
+    env_files = workspace.config.env_files
+    if not env_files:
+        return []
+    slot_dir = slots_mod.slot_dir(workspace, slot_id)
+    removed: list[str] = []
+    for rel in env_files:
+        dst = slot_dir / rel
+        try:
+            dst.unlink()
+        except OSError:
+            continue
+        removed.append(rel)
+        parent = dst.parent
+        while parent != slot_dir:
+            try:
+                parent.rmdir()
+            except OSError:
+                break
+            parent = parent.parent
+    return removed
+
+
 def bootstrap_repo(
     workspace: Workspace,
     feature_name: str,

@@ -782,6 +782,11 @@ class FeatureCoordinator:
 
             # Remove the slot directory if empty
             try:
+                from ..actions.bootstrap import clear_workspace_files
+                clear_workspace_files(self.workspace, slot_id)
+            except Exception:
+                pass
+            try:
                 wt_base.rmdir()
             except OSError:
                 pass
