@@ -55,6 +55,23 @@ def test_make_external_rejects_dot_canopy(tmp_path):
         make_external(tmp_path / "ws", "../..")
 
 
+@pytest.mark.parametrize("path", ["../worktree-1", "../worktree-12", "../Worktree-2"])
+def test_make_external_rejects_link_on_slot_dir(tmp_path, path):
+    with pytest.raises(ConfigError, match="reserved"):
+        make_external(tmp_path / "ws", path)
+
+
+@pytest.mark.parametrize("path", ["../../state", "../../features.json", "../../memory"])
+def test_make_external_rejects_link_on_canopy_state_entry(tmp_path, path):
+    with pytest.raises(ConfigError, match="reserved"):
+        make_external(tmp_path / "a" / "ws", path)
+
+
+def test_make_external_allows_non_slot_name_beside_slots(tmp_path):
+    ext = make_external(tmp_path / "ws", "../worktree-lib")
+    assert ext.link.name == "worktree-lib"
+
+
 def test_make_external_rejects_absolute_path(tmp_path):
     abs_path = str(tmp_path / "lib")
     with pytest.raises(ConfigError, match="must be relative"):
@@ -375,6 +392,60 @@ def test_switch_blocks_before_mutation_when_external_target_missing(workspace_wi
     assert stash_list == ""
     assert not (ws.config.root / ".canopy" / "worktrees" / "worktree-1").exists()
     assert sm.read_state(ws).in_flight is None
+
+
+def _warm_y_then_break_external(ws_root: Path) -> Workspace:
+    """X canonical, Y warm in worktree-1, Z branches ready, then the external target vanishes."""
+    import shutil
+    import subprocess
+    from canopy.actions.slot_load import slot_load
+    ws = _make_canonical(ws_root)
+    slot_load(ws, "Y")
+    for repo in ("repo-a", "repo-b"):
+        subprocess.run(["git", "branch", "Z"], cwd=ws_root / repo, check=True)
+    shutil.rmtree(ws.config.externals[0].target)
+    return ws
+
+
+def _assert_y_still_warm(ws: Workspace) -> None:
+    from canopy.actions import slots as sm
+    state = sm.read_state(ws)
+    assert state.slots["worktree-1"].feature == "Y"
+    assert (ws.config.root / ".canopy" / "worktrees" / "worktree-1" / "repo-a" / ".git").exists()
+    assert state.in_flight is None
+
+
+def test_slot_load_replace_blocks_before_evicting_occupant(workspace_with_external):
+    from canopy.actions.slot_load import slot_load
+    ws = _warm_y_then_break_external(workspace_with_external.config.root)
+    with pytest.raises(BlockerError) as e:
+        slot_load(ws, "Z", slot_id="worktree-1", replace=True)
+    assert e.value.code == "external_target_missing"
+    _assert_y_still_warm(ws)
+
+
+def test_switch_evict_blocks_before_evicting_warm_feature(workspace_with_external):
+    import subprocess
+    from canopy.actions.switch import switch
+    ws = _warm_y_then_break_external(workspace_with_external.config.root)
+    with pytest.raises(BlockerError) as e:
+        switch(ws, "Z", evict="Y")
+    assert e.value.code == "external_target_missing"
+    _assert_y_still_warm(ws)
+    stash_list = subprocess.run(
+        ["git", "stash", "list"],
+        cwd=ws.config.root / "repo-a", capture_output=True, text=True, encoding="utf-8", check=True,
+    ).stdout.strip()
+    assert stash_list == ""
+
+
+def test_switch_evict_to_occupied_blocks_before_evicting_occupant(workspace_with_external):
+    from canopy.actions.switch import switch
+    ws = _warm_y_then_break_external(workspace_with_external.config.root)
+    with pytest.raises(BlockerError) as e:
+        switch(ws, "Z", evict_to="worktree-1")
+    assert e.value.code == "external_target_missing"
+    _assert_y_still_warm(ws)
 
 
 # ── doctor ───────────────────────────────────────────────────────────

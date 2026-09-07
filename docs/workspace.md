@@ -148,9 +148,12 @@ under the workspace root (a single-component `path`, e.g. `api` or `./api`, neve
 `services/api`); this is enforced by `ConfigError` at load time. Externals should
 be direct siblings of the workspace root too — a nested `path = "../x/lib"`
 creates a real `.canopy/worktrees/x` directory (not just a link) before linking
-`lib` inside it. The link is a junction on Windows (no admin rights) and a
-symlink elsewhere. It is created on the first `slot load` / `switch` that
-populates a slot, and repaired by `canopy doctor --fix-category externals`.
+`lib` inside it. A link may not land on a slot path (`../worktree-1`) or on one
+of canopy's own entries under `.canopy/` (`../../state`); both are rejected at
+load time. The link is a junction on Windows (no admin rights) and a symlink
+elsewhere. It is checked and created before `slot load` / `switch` mutate
+anything — an unresolvable external blocks the operation up front, before any
+occupant is evicted — and repaired by `canopy doctor --fix-category externals`.
 `context` lists each external with its `state` (`ok`, `missing`, `stale`,
 `shadowed`, `target_missing`).
 

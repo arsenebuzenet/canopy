@@ -122,6 +122,11 @@ def slot_load(
             what=f"slot '{slot_id}' out of range (cap={state.slot_count})",
         )
 
+    # Links first: a slot whose repos cannot resolve their siblings is not
+    # loadable, and this must be known before the occupant is evicted below —
+    # otherwise a BlockerError would leave the previous tenant cold for nothing.
+    ensure_external_links(workspace)
+
     # If occupied: evict with replace=True, else refuse.
     evicted: dict | None = None
     if slot_id in state.slots:
@@ -160,10 +165,6 @@ def slot_load(
             ),
             details={"feature": feature_name},
         )
-    # Links first: a slot whose repos cannot resolve their siblings is not
-    # loadable, and a BlockerError here leaves no half-built slot behind.
-    ensure_external_links(workspace)
-
     per_repo: list[dict] = []
     for repo_name, branch in repo_branches.items():
         try:

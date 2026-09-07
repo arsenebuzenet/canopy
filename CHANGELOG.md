@@ -10,8 +10,10 @@ Versions follow semver. Pre-1.0 — minor bumps may add features or break behavi
   (`path = "../lib"`). canopy links them next to the slot dirs (junction on
   Windows, symlink elsewhere) so relative references from a repo resolve the
   same way inside a warm slot as from the canonical checkout. Links are
-  planted by `slot load` / `switch` and repaired by
-  `doctor --fix-category externals`; `context` reports each external's state.
+  planted by `slot load` / `switch` — checked before either evicts an occupant —
+  and repaired by `doctor --fix-category externals`; `context` reports each
+  external's state. A link may not land on a slot path or on a `.canopy/` state
+  entry (rejected at load time).
 - `doctor`: new `externals` category (`external_link_missing`,
   `external_link_stale`, `external_link_shadowed`, `external_target_missing`) —
   25 codes across 12 categories.

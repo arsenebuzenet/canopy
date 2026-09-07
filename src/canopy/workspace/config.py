@@ -4,6 +4,7 @@ Parse and validate canopy.toml workspace configuration.
 from __future__ import annotations
 
 import os
+import re
 import sys
 if sys.version_info >= (3, 11):
     import tomllib
@@ -86,7 +87,26 @@ def make_external(root: Path, path: str, name: str | None = None) -> ExternalCon
             f"[[externals]] '{ext_name}': path {path!r} climbs too far above the workspace "
             "(its slot-relative link would leave .canopy/)"
         )
+    # Landing beside the slots is the whole point, but landing ON a slot path
+    # (or on one of .canopy's own entries) would have `git worktree add`
+    # write the slot's repos through the junction into the unmanaged target.
+    if _paths_equal(link.parent, worktrees_root) and _SLOT_DIR_RE.fullmatch(link.name):
+        raise ConfigError(
+            f"[[externals]] '{ext_name}': path {path!r} would link onto slot dir "
+            f"'{link.name}' — that name is reserved for warm slots"
+        )
+    if _paths_equal(link.parent, dot_canopy) and link.name.lower() in _RESERVED_DOT_CANOPY:
+        raise ConfigError(
+            f"[[externals]] '{ext_name}': path {path!r} would link onto .canopy/{link.name}, "
+            "a name reserved for canopy state"
+        )
     return ExternalConfig(name=ext_name, path=path, target=target, link=link)
+
+
+_SLOT_DIR_RE = re.compile(r"worktree-\d+", re.IGNORECASE)
+_RESERVED_DOT_CANOPY = frozenset({
+    "features.json", "mcps.json", "mcp-tokens", "memory", "state", "workspaces", "worktrees",
+})
 
 
 def _is_under(child: Path, parent: Path, *, strict: bool = False) -> bool:
