@@ -32,6 +32,7 @@ from . import slots as slots_mod
 from . import switch_preflight as preflight
 from .aliases import resolve_feature, repos_for_feature
 from .errors import BlockerError, FixAction
+from .externals import ensure_external_links
 
 
 # Precondition BlockerError codes raised by _do_repo_switch BEFORE any git
@@ -42,6 +43,8 @@ _PRE_MUTATION_CODES = frozenset({
     "unknown_slot",
     "evict_to_occupied",
     "warm_worktree_dirty_on_promote",
+    "external_target_missing",
+    "external_link_shadowed",
 })
 
 
@@ -157,6 +160,11 @@ def switch(
             details={"warm_features": pre.get("warm_features", []),
                      "lru_candidate": lru, "vacating": previously_canonical},
         )
+
+    # Externals before anything mutates: Step A evicts a warm feature and
+    # Step C plants the links again per repo, so an unresolvable external
+    # must surface here, while the eviction is still avoidable.
+    ensure_external_links(workspace)
 
     # Step A: optional eviction (active-rotation cap fire) —
     # explicit ``evict=<feature>`` overrides preflight's LRU pick.

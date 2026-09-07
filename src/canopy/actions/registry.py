@@ -186,5 +186,7 @@ def context(workspace: Workspace, *, cwd: Path | None = None,
         for sid, e in state.slots.items():
             out_slots[sid] = {"feature": e.feature,
                               "bootstrap": dict(bootstrap_map.get(sid, {}))}
+    from .externals import external_status
+    out["externals"] = external_status(workspace)
     out["slots"] = out_slots
     return out

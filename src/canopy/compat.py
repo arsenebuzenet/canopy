@@ -15,6 +15,7 @@ from __future__ import annotations
 import errno
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -175,3 +176,52 @@ def utf8_stdio() -> None:
             stream.reconfigure(encoding="utf-8")
         except (AttributeError, ValueError):
             pass
+
+
+# ── directory links ──────────────────────────────────────────────────
+#
+# Windows junctions need no privilege, unlike Windows symlinks, so they are
+# the link type there. ``os.rmdir`` on a junction drops the reparse point and
+# leaves the target untouched; ``os.unlink`` is the POSIX symlink equivalent.
+
+if IS_WINDOWS:
+    import _winapi
+
+    _REPARSE_TAGS = {stat.IO_REPARSE_TAG_MOUNT_POINT, stat.IO_REPARSE_TAG_SYMLINK}
+
+    def is_dir_link(path: Path | str) -> bool:
+        """True for a junction or a directory symlink; False for anything else or a missing path."""
+        try:
+            st = os.lstat(path)
+        except OSError:
+            return False
+        return getattr(st, "st_reparse_tag", 0) in _REPARSE_TAGS
+
+    def make_dir_link(link: Path | str, target: Path | str) -> None:
+        # Private CPython API (CPython's own test suite relies on it too); no
+        # public equivalent short of shelling out to `mklink /J`.
+        _winapi.CreateJunction(str(target), str(link))
+
+    def read_dir_link(link: Path | str) -> Path:
+        raw = os.readlink(link)
+        if raw.startswith("\\\\?\\"):
+            raw = raw[4:]
+        return Path(raw)
+
+    def remove_dir_link(link: Path | str) -> None:
+        os.rmdir(link)
+
+else:
+
+    def is_dir_link(path: Path | str) -> bool:
+        """True for a symlink (of any kind); False otherwise or for a missing path."""
+        return os.path.islink(path)
+
+    def make_dir_link(link: Path | str, target: Path | str) -> None:
+        os.symlink(str(target), str(link), target_is_directory=True)
+
+    def read_dir_link(link: Path | str) -> Path:
+        return Path(os.readlink(link))
+
+    def remove_dir_link(link: Path | str) -> None:
+        os.unlink(link)

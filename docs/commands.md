@@ -147,9 +147,9 @@ Write actions and execution.
 
 | Command | What it does |
 |---|---|
-| ⚡ `canopy doctor [-v] [--feature <f>]` **(agent tool)** | Diagnose **21 codes across 11 categories** of state-file drift + install staleness (incl. slot-state and orphan-process checks). Reports `errors`/`warnings`/`info` with structured `code`, `expected`, `actual`, and per-issue `fix_action`. **Run this first** when any other canopy operation returns an unexpected error. `--json` returns the full report shape `{issues, summary, fixed, skipped}`. |
-| `canopy doctor --fix` | Repair every `auto_fixable=true` issue. Examples: rewrite `heads.json` from live git, drop orphan worktree dirs via `git worktree remove --force`, reinstall a missing post-checkout hook, clean up an orphan slot dir, reap orphaned `canopy-mcp` processes, write a missing `.mcp.json` entry, reinstall the `using-canopy` skill. |
-| `canopy doctor --fix-category <c>` | Repair just one category. Accepts: `active_feature`, `branches`, `cli`, `features`, `heads`, `hooks`, `mcp`, `preflight`, `skill`, `worktrees` (implies `--fix`). The 11th category, `slots`, is intentionally not offered here — its fixes are manual (you decide which side is canonical). |
+| ⚡ `canopy doctor [-v] [--feature <f>]` **(agent tool)** | Diagnose **25 codes across 12 categories** of state-file drift + install staleness (incl. slot-state and orphan-process checks). Reports `errors`/`warnings`/`info` with structured `code`, `expected`, `actual`, and per-issue `fix_action`. **Run this first** when any other canopy operation returns an unexpected error. `--json` returns the full report shape `{issues, summary, fixed, skipped}`. |
+| `canopy doctor --fix` | Repair every `auto_fixable=true` issue. Examples: rewrite `heads.json` from live git, drop orphan worktree dirs via `git worktree remove --force`, reinstall a missing post-checkout hook, clean up an orphan slot dir, reap orphaned `canopy-mcp` processes, write a missing `.mcp.json` entry, reinstall the `using-canopy` skill, plant a missing `[[externals]]` link. |
+| `canopy doctor --fix-category <c>` | Repair just one category. Accepts: `active_feature`, `branches`, `cli`, `externals`, `features`, `heads`, `hooks`, `mcp`, `preflight`, `skill`, `worktrees` (implies `--fix`). `slots` is intentionally not offered here — its fixes are manual (you decide which side is canonical). |
 | `canopy --version` | ⚡ **(agent tool `version`)** Print the installed CLI version — the handshake `doctor`'s `cli_stale` / `mcp_stale` checks compare against. |
 
 ### Diagnostic codes
@@ -173,6 +173,10 @@ State-integrity (the workspace's own bookkeeping):
 | `preflight_stale` | preflight | info | recorded `head_sha_per_repo` no longer matches live HEAD | drop the entry |
 | `features_unknown_repo` | features | error | `features.json` references repo not in `canopy.toml` | manual (restore the repo or `done` the feature) |
 | `branches_missing` | branches | error | feature's recorded branch doesn't exist locally | manual (restore branch or `done` feature) |
+| `external_link_missing` | externals | warn | no link at the `[[externals]]` link path | create the link |
+| `external_link_stale` | externals | warn | link points somewhere other than the external's target | recreate the link |
+| `external_link_shadowed` | externals | error | a real directory or file occupies the link path | manual (move it out of the way) |
+| `external_target_missing` | externals | error | the external's target directory does not exist | manual (restore it or drop the entry) |
 
 Install-staleness (canopy's installation around the workspace):
 

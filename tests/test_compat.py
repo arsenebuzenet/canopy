@@ -220,3 +220,33 @@ def test_find_bash_rejects_the_windowsapps_launcher(monkeypatch):
         if name == "bash" else None
     ))
     assert compat.find_bash() is None
+
+
+# ── directory links ──────────────────────────────────────────────────
+
+def test_dir_link_round_trip(tmp_path):
+    target = tmp_path / "target"
+    (target / "inner").mkdir(parents=True)
+    (target / "inner" / "f.txt").write_text("x", encoding="utf-8")
+    link = tmp_path / "link"
+    compat.make_dir_link(link, target)
+    assert compat.is_dir_link(link)
+    assert link.is_dir()
+    assert (link / "inner" / "f.txt").read_text(encoding="utf-8") == "x"
+    assert compat.same_path(compat.read_dir_link(link), target)
+    compat.remove_dir_link(link)
+    assert not link.exists()
+    assert (target / "inner" / "f.txt").exists()
+
+
+def test_is_dir_link_false_for_plain_dir_file_and_missing(tmp_path):
+    (tmp_path / "d").mkdir()
+    (tmp_path / "f").write_text("", encoding="utf-8")
+    assert not compat.is_dir_link(tmp_path / "d")
+    assert not compat.is_dir_link(tmp_path / "f")
+    assert not compat.is_dir_link(tmp_path / "missing")
+
+
+def test_make_dir_link_requires_existing_parent(tmp_path):
+    with pytest.raises(OSError):
+        compat.make_dir_link(tmp_path / "no" / "parent" / "link", tmp_path)

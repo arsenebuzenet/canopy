@@ -135,3 +135,22 @@ def test_remote_overlay_falls_back_to_cache_when_offline(canopy_toml_for_workspa
     assert ctx["remote"]["stale"] is True
     assert ctx["features"]["auth-flow"]["repos"]["repo-a"]["pr"]["number"] == 9
     assert ctx["remote"]["fetched_at"]  # non-empty string stamped by prs_cache.write
+
+
+def test_context_lists_externals(canopy_toml_for_workspace):
+    from canopy.actions.registry import context
+    root = canopy_toml_for_workspace
+    (root.parent / "ext-lib").mkdir()
+    toml = root / "canopy.toml"
+    toml.write_text(toml.read_text(encoding="utf-8") + '\n[[externals]]\npath = "../ext-lib"\n',
+                    encoding="utf-8")
+    ctx = context(_ws(root))
+    (ext,) = ctx["externals"]
+    assert ext["name"] == "ext-lib"
+    assert ext["state"] == "missing"
+    assert ext["link"].endswith("ext-lib")
+
+
+def test_context_externals_empty_by_default(canopy_toml_for_workspace):
+    from canopy.actions.registry import context
+    assert context(_ws(canopy_toml_for_workspace))["externals"] == []

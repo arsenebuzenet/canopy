@@ -12,6 +12,7 @@ from ..git import repo as git
 from ..workspace.workspace import Workspace
 from .aliases import resolve_feature, repos_for_feature
 from .errors import BlockerError, FixAction
+from .externals import ensure_external_links
 from . import slots as slots_mod
 
 
@@ -120,6 +121,11 @@ def slot_load(
             code="unknown_slot",
             what=f"slot '{slot_id}' out of range (cap={state.slot_count})",
         )
+
+    # Links first: a slot whose repos cannot resolve their siblings is not
+    # loadable, and this must be known before the occupant is evicted below —
+    # otherwise a BlockerError would leave the previous tenant cold for nothing.
+    ensure_external_links(workspace)
 
     # If occupied: evict with replace=True, else refuse.
     evicted: dict | None = None

@@ -66,7 +66,8 @@ src/canopy/
 │   ├── augments.py            # per-workspace augment resolver (preflight_cmd, review_bots, …)
 │   ├── hook_gate.py           # NEW 4.0: PreToolUse git gate — blocks mutations from wrong path/branch
 │   ├── hook_context.py        # NEW 4.0: SessionStart brief — one compact orientation block
-│   └── doctor.py              # diagnostic checks + fix hints (21-code / 11-category recovery)
+│   ├── externals.py           # NEW: [[externals]] link status + ensure (siblings resolvable from slots)
+│   └── doctor.py              # diagnostic checks + fix hints (25-code / 12-category recovery)
 ├── management/                # NEW 4.0: quarantined HUMAN/dashboard surface — CLI --json only, NO MCP
 │   ├── review_ops.py          # review_status / review_comments / review_prep (extracted from coordinator)
 │   ├── review_filter.py       # temporal classifier (actionable vs likely_resolved threads)
@@ -192,7 +193,7 @@ name, repo name, alias), and canopy resolves the directory internally.
    reclaim(slot)                     ─→  PR merged? checkout base + drop worktree
                                      ←─  freed slot
 
-   doctor()                          ─→  21-code / 11-category integrity scan + fix hints
+   doctor()                          ─→  25-code / 12-category integrity scan + fix hints
                                      ←─  findings + fix_actions
 ```
 

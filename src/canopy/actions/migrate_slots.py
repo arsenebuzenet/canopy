@@ -26,6 +26,7 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib  # type: ignore[import-not-found]
 
+from .. import compat
 from ..git import repo as git
 from . import slots as slots_mod
 from .errors import BlockerError
@@ -89,7 +90,7 @@ def migrate(workspace_root: Path) -> dict[str, Any]:
     legacy: dict[str, list[str]] = {}  # feature → list of repos
     if wt_base.is_dir():
         for feat_dir in sorted(wt_base.iterdir()):
-            if not feat_dir.is_dir():
+            if not feat_dir.is_dir() or compat.is_dir_link(feat_dir):
                 continue
             if re.fullmatch(r"worktree-\d+", feat_dir.name):
                 raise AlreadyMigratedError(

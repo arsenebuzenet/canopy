@@ -7,6 +7,7 @@ from collections import Counter
 from pathlib import Path
 
 from .config import RepoConfig
+from .. import compat
 from ..git import repo as git
 
 
@@ -227,9 +228,9 @@ def summarize_worktree_dirs(root: Path) -> dict[str, list[str]]:
 
     out: dict[str, list[str]] = {}
     for d in sorted(wt_root.iterdir()):
-        if not d.is_dir():
+        if not d.is_dir() or compat.is_dir_link(d):
             continue
-        repos = sorted(r.name for r in d.iterdir() if r.is_dir())
+        repos = sorted(r.name for r in d.iterdir() if r.is_dir() and not compat.is_dir_link(r))
         if re.fullmatch(r"worktree-\d+", d.name):
             key = slot_feature.get(d.name) or d.name  # feature, else slot id
         else:

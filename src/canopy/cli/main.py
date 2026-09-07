@@ -4077,7 +4077,7 @@ def main() -> None:
     doctor_p.add_argument(
         "--fix-category",
         choices=sorted(["heads", "active_feature", "worktrees", "hooks",
-                        "preflight", "features", "branches",
+                        "preflight", "features", "branches", "externals",
                         "cli", "mcp", "skill"]),
         default=None,
         help="Repair only one category (implies --fix)",

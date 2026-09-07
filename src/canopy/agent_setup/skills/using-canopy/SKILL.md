@@ -129,7 +129,7 @@ When you see a `BlockerError`, the first step is to read `fix_actions[0]` and de
 
 ## Recovery: when canopy itself looks broken
 
-If a canopy call returns an unexpected error — `KeyError` from a state read, a "feature not found" for one you just created, a worktree path that should exist but doesn't — call `mcp__canopy__doctor` first. It reports 21 codes across 12 categories of state-file drift + install-staleness (including slot-state checks added in Wave 3.0: `slot_dir_orphan`, `slot_entry_orphan`, `slot_branch_mismatch`, `slot_detached_head`), each with `code`, `severity`, `expected`/`actual`, and an `auto_fixable` flag.
+If a canopy call returns an unexpected error — `KeyError` from a state read, a "feature not found" for one you just created, a worktree path that should exist but doesn't — call `mcp__canopy__doctor` first. It reports 25 codes across 12 categories of state-file drift + install-staleness (including slot-state checks added in Wave 3.0: `slot_dir_orphan`, `slot_entry_orphan`, `slot_branch_mismatch`, `slot_detached_head`), each with `code`, `severity`, `expected`/`actual`, and an `auto_fixable` flag.
 
 - `summary.errors == 0` → not a state problem; investigate the original error normally.
 - Errors present, mostly `auto_fixable: true` → call `doctor(fix=True)`; report `fixed`/`skipped` to the user.
@@ -204,6 +204,9 @@ Use raw `Bash`, `Read`, `Edit` etc. as normal for:
 - Add the remote overlay (`context remote=True`) ONLY when the task depends on
   remote state — addressing PR comments, checking if CI is green, reviewing.
   Local code/feature work does not need it.
+- `context`'s `externals` lists the workspace's unmanaged sibling directories
+  (`[[externals]]`) and whether their slot-side link is `ok`; treat them as
+  read-only.
 - `start <alias>` begins new work (lazy: no repos until you join).
 - `canopy join <repo>` when you're ready to work in a repo — it creates the
   branch AND registers the repo so the enforcement gate recognizes it. A raw
