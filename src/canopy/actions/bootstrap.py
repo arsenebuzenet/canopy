@@ -3,7 +3,9 @@
 Three optional steps, gated per repo + per invocation:
 
   1. **Env file copy** — per-repo ``env_files`` lists files (relative to
-     repo root) to copy from the main checkout into the worktree.
+     repo root) to copy from the main checkout into the worktree;
+     workspace-level ``env_files`` lists files (relative to the workspace
+     root) to copy into the slot dir itself.
   2. **Dependency install** — per-repo ``install_cmd`` runs once in the
      worktree directory (e.g. ``uv sync`` / ``pnpm install``).
   3. **IDE workspace file** — workspace-level ``ide = "vscode"`` writes
@@ -27,6 +29,7 @@ from typing import Any, Iterable
 
 from .. import compat
 from ..workspace.workspace import Workspace
+from . import slots as slots_mod
 from .aliases import resolve_feature
 from .errors import BlockerError
 from .ide_workspace import render_code_workspace
@@ -52,10 +55,11 @@ def bootstrap_feature(
         interactive: run the deps install in the foreground (stream output,
             allow prompts) instead of capturing its stdio.
 
-    Returns ``{feature, results: {<repo>: {env, deps}}, ide}``.
+    Returns ``{feature, results: {<repo>: {env, deps}}, workspace_env, ide}``.
     Per-step result shape::
 
         env  → {status: "ok"|"skipped"|"missing_source", files_copied: [...]}
+        workspace_env → same shape as env (slot-root copy of [workspace] env_files)
         deps → {status: "ok"|"failed"|"skipped", exit_code, duration_ms,
                 stderr_tail?}
         ide  → {status: "ok"|"skipped"|"no_ide_configured", path?}
@@ -80,6 +84,12 @@ def bootstrap_feature(
             force=force, steps=chosen_steps, interactive=interactive,
         )
 
+    workspace_env: dict[str, Any] = {"status": "skipped", "files_copied": []}
+    if "env" in chosen_steps:
+        slot_id = slots_mod.slot_for_feature(workspace, feature_name)
+        if slot_id is not None:
+            workspace_env = bootstrap_workspace_files(workspace, slot_id, force=force)
+
     ide_result: dict[str, Any]
     if "ide" in chosen_steps and workspace.config.ide and workspace.config.ide != "none":
         ide_result = _write_ide_workspace(workspace, feature_name, worktree_paths)
@@ -89,8 +99,56 @@ def bootstrap_feature(
     return {
         "feature": feature_name,
         "results": results,
+        "workspace_env": workspace_env,
         "ide": ide_result,
     }
+
+
+def bootstrap_workspace_files(
+    workspace: Workspace, slot_id: str, *, force: bool = False,
+) -> dict[str, Any]:
+    """Copy ``[workspace] env_files`` from the workspace root into ``slot_id``'s dir.
+
+    From the canonical checkout a repo's ``../<file>`` reference lands on
+    the workspace root; from ``worktree-N/<repo>`` it lands on the slot
+    dir. Copying there keeps the reference valid inside the slot. One call
+    per slot, not per repo.
+    """
+    env_files = workspace.config.env_files
+    if not env_files:
+        return {"status": "skipped", "files_copied": [],
+                "reason": "no env_files configured"}
+    slot_dir = slots_mod.slot_dir(workspace, slot_id)
+    return _copy_env_files(env_files, workspace.config.root, slot_dir, force=force)
+
+
+def clear_workspace_files(workspace: Workspace, slot_id: str) -> list[str]:
+    """Remove this slot's copies of ``[workspace] env_files``.
+
+    Slot teardown ends with ``rmdir`` on the slot dir, which only succeeds
+    while it is empty. A copy left at its root would outlive the worktrees
+    and turn the slot into a permanent ``slot_dir_orphan``.
+    """
+    env_files = workspace.config.env_files
+    if not env_files:
+        return []
+    slot_dir = slots_mod.slot_dir(workspace, slot_id)
+    removed: list[str] = []
+    for rel in env_files:
+        dst = slot_dir / rel
+        try:
+            dst.unlink()
+        except OSError:
+            continue
+        removed.append(rel)
+        parent = dst.parent
+        while parent != slot_dir:
+            try:
+                parent.rmdir()
+            except OSError:
+                break
+            parent = parent.parent
+    return removed
 
 
 def bootstrap_repo(
@@ -366,7 +424,6 @@ def _resolve_worktree_paths(
     slots.json). The old code read only the legacy cache, which is empty in
     3.0 — so bootstrap raised ``no_worktrees`` for every warm feature.
     """
-    from . import slots as slots_mod
     from .aliases import repos_for_feature
 
     slot_id = slots_mod.slot_for_feature(workspace, feature_name)

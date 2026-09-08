@@ -463,7 +463,9 @@ def worktree_bootstrap(
 
     Three optional steps, off by default unless the matching config is
     set in canopy.toml: env-file copy from main checkout into the
-    worktree, dep install via per-repo ``install_cmd``, and a
+    worktree (per-repo ``env_files``) and from the workspace root into
+    the slot dir (``[workspace] env_files``), dep install via per-repo
+    ``install_cmd``, and a
     ``.canopy/workspaces/<feature>.code-workspace`` file when
     ``[workspace] ide = "vscode"`` is set.
 

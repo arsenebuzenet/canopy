@@ -441,3 +441,25 @@ def test_done_removes_slot_dirs(workspace_with_slots):
     state = slots_mod.read_state(workspace_with_slots)
     assert state is not None
     assert "worktree-1" not in state.slots
+
+
+def test_done_removes_the_slot_dir_with_workspace_env_files(workspace_with_slots):
+    """A copied [workspace] env_file must not keep the slot dir alive."""
+    from canopy.actions import slots as slots_mod
+    from canopy.actions.bootstrap import bootstrap_workspace_files
+    toml = workspace_with_slots.config.root / "canopy.toml"
+    toml.write_text(
+        toml.read_text(encoding="utf-8").replace(
+            "[workspace]\n", '[workspace]\nenv_files = ["spaces.ini"]\n', 1,
+        ),
+        encoding="utf-8",
+    )
+    ws = Workspace(load_config(workspace_with_slots.config.root))
+    (ws.config.root / "spaces.ini").write_text("ENV_MODE=DEV\n", encoding="utf-8")
+    bootstrap_workspace_files(ws, "worktree-1")
+    slot_dir = slots_mod.slot_dir(ws, "worktree-1")
+    assert (slot_dir / "spaces.ini").exists()
+
+    FeatureCoordinator(ws).done("Y")
+
+    assert not slot_dir.exists()

@@ -62,6 +62,7 @@ slots = 2                    # warm-slot cap for switch (default 2)
                              # pre-3.0 max_worktrees raises ConfigError — run canopy migrate-slots
 ide = "vscode"               # optional: "vscode" | "none" (default) — worktree .code-workspace gen
 bootstrap_default = false    # optional: if true, --bootstrap is implicit on slot creation
+env_files = ["spaces.ini"]   # optional: root-level files copied into each warm slot's dir
 
 [[repos]]
 name = "backend"
@@ -100,6 +101,7 @@ review_bots = ["coderabbit", "korbit"]   # case-insensitive substring; bot-comme
 | `slots` | int ≥ 1 | `2` | Warm-slot cap for `switch`. Canonical/trunk is separate, so 1 + `slots` live trees. Pre-3.0 `max_worktrees` now raises `ConfigError` → run `canopy migrate-slots`. |
 | `ide` | string | `"none"` | `"vscode"` generates a `.code-workspace` for each warm slot (worktree bootstrap). |
 | `bootstrap_default` | bool | `false` | When true, slot creation bootstraps (env/deps/hooks/IDE) without an explicit `--bootstrap`. |
+| `env_files` | list[string] | `[]` | Worktree bootstrap: files relative to the workspace root, outside any repo, copied into the slot dir (`.canopy/worktrees/worktree-N/<file>`). Covers a repo's `../<file>` reference — from `worktree-N/<repo>` that lands in the slot dir, where the canonical checkout finds the workspace root. Must stay under the root (no absolute path, no `..`). Same copy semantics as the per-repo key: existing destinations are kept unless `--force`. |
 
 Only `name` and `slots` are exposed through `canopy config` (which is flat, `[workspace]`-only).
 
@@ -116,7 +118,7 @@ else is optional and mostly auto-detected by `canopy init`.
 | `lang` | string | `""` | Optional: primary language, detected by file-extension frequency. |
 | `default_branch` | string | `"main"` | Per-repo trunk. Out-of-scope repos snap here on `switch`. |
 | `augments` | table | `{}` | Per-repo override of any `[augments]` key. Per-repo wins on collision. |
-| `env_files` | list[string] | `[]` | Worktree bootstrap: files copied into a new warm slot (e.g. `[".env"]`). |
+| `env_files` | list[string] | `[]` | Worktree bootstrap: files relative to the repo root copied into its worktree in a new warm slot (e.g. `[".env"]`). For files above the repo, use `[workspace] env_files`. |
 | `install_cmd` | string | `""` | Worktree bootstrap: deps install command (e.g. `"pnpm install"`). Short-circuited by lockfile fingerprint (see `deps_fingerprints.json`). |
 | `ide_settings` | table | `{}` | Worktree bootstrap: per-repo settings merged into the generated `.code-workspace`. |
 

@@ -4,6 +4,19 @@ Tracks the Python side (CLI + MCP server). The VSCode extension has its own [vsc
 
 Versions follow semver. Pre-1.0 — minor bumps may add features or break behavior; the README is the source-of-truth contract.
 
+## 4.0.0-rc4 — 2026-09-07 (Workspace-level env files)
+
+- `[workspace] env_files` in canopy.toml lists files that live at the workspace
+  root, outside any repo, and are copied into each warm slot's dir
+  (`.canopy/worktrees/worktree-N/<file>`). A repo's `../<file>` reference
+  resolves to the workspace root from the canonical checkout and to the slot
+  dir from inside a slot, so this is where such files must land. Runs with
+  the `env` bootstrap step — on slot creation and via `worktree-bootstrap` —
+  and reports as `workspace_env` in the result. Paths must stay under the
+  root (absolute paths and `..` are rejected at load time).
+  `feature done` deletes the copies before removing the slot dir, so a
+  copied file can't outlive the worktrees as a `slot_dir_orphan`.
+
 ## 4.0.0-rc3 — 2026-09-04 (Externals)
 
 - `[[externals]]` in canopy.toml declares unmanaged sibling directories
