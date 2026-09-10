@@ -21,6 +21,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
+from . import proc
 
 IS_WINDOWS = sys.platform.startswith("win")
 
@@ -139,8 +140,8 @@ def run_shell(cmd: str, *, cwd: Path | str | None = None, **kw: Any) -> subproce
                     preview="winget install --id Git.Git",
                 )],
             )
-        return subprocess.run([str(bash), "-c", cmd], cwd=cwd, **kw)
-    return subprocess.run(cmd, cwd=cwd, shell=True, **kw)
+        return proc.run([str(bash), "-c", cmd], cwd=cwd, **kw)
+    return proc.run(cmd, cwd=cwd, shell=True, **kw)
 
 
 def detached_popen_kwargs() -> dict[str, Any]:

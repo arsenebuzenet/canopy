@@ -9,6 +9,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 from typing import Any
+from .. import proc
 
 
 class GitError(Exception):
@@ -29,7 +30,7 @@ def _run(args: list[str], cwd: Path, check: bool = True) -> str:
     Returns:
         Stripped stdout string.
     """
-    result = subprocess.run(
+    result = proc.run(
         ["git"] + args,
         capture_output=True,
         text=True, encoding="utf-8",
@@ -46,7 +47,7 @@ def _run(args: list[str], cwd: Path, check: bool = True) -> str:
 
 def _run_ok(args: list[str], cwd: Path) -> str:
     """Run a git command, returning stdout or empty string on failure."""
-    result = subprocess.run(
+    result = proc.run(
         ["git"] + args,
         capture_output=True,
         text=True, encoding="utf-8",
@@ -86,7 +87,7 @@ def short_sha(repo_path: Path) -> str:
 
 def is_dirty(repo_path: Path) -> bool:
     """Check if the working tree has any changes."""
-    result = subprocess.run(
+    result = proc.run(
         ["git", "status", "--porcelain"],
         capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
     )
@@ -109,7 +110,7 @@ def remote_url(repo_path: Path) -> str:
 def default_branch(repo_path: Path) -> str:
     """Detect the default branch (main or master)."""
     for candidate in ("main", "master"):
-        result = subprocess.run(
+        result = proc.run(
             ["git", "rev-parse", "--verify", candidate],
             capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
         )
@@ -168,7 +169,7 @@ def changed_files_with_status(repo_path: Path, branch: str, base: str) -> list[d
         entries[path] = status
 
     # Porcelain output preserves leading spaces; don't use _run_ok (which strips).
-    raw = subprocess.run(
+    raw = proc.run(
         ["git", "status", "--porcelain"],
         capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
     ).stdout
@@ -199,7 +200,7 @@ def branches(repo_path: Path) -> list[str]:
 
 def branch_exists(repo_path: Path, branch: str) -> bool:
     """Check if a local branch exists."""
-    result = subprocess.run(
+    result = proc.run(
         ["git", "rev-parse", "--verify", branch],
         capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
     )
@@ -297,7 +298,7 @@ def commit(
 def has_upstream(repo_path: Path, branch: str | None = None) -> bool:
     """Check whether ``branch`` (or current branch) has a configured upstream."""
     target = f"{branch}@{{upstream}}" if branch else "@{upstream}"
-    result = subprocess.run(
+    result = proc.run(
         ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", target],
         capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
     )
@@ -321,7 +322,7 @@ def unpushed_count(repo_path: Path, branch: str | None = None) -> int:
     """
     target = branch or "HEAD"
     upstream = f"{branch}@{{upstream}}" if branch else "@{upstream}"
-    result = subprocess.run(
+    result = proc.run(
         ["git", "rev-list", "--count", f"{upstream}..{target}"],
         capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
     )
@@ -368,7 +369,7 @@ def push(
     if branch:
         args.append(branch)
 
-    result = subprocess.run(
+    result = proc.run(
         ["git"] + args,
         capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
     )
@@ -479,7 +480,7 @@ def status_porcelain(repo_path: Path) -> list[dict]:
         List of {path, index_status, worktree_status}
     """
     # Use raw subprocess to preserve leading spaces (porcelain format uses them)
-    result = subprocess.run(
+    result = proc.run(
         ["git", "status", "--porcelain"],
         capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
     )

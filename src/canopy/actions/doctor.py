@@ -41,6 +41,7 @@ from ..git import hooks as canopy_hooks
 from ..git import repo as git
 from ..workspace.workspace import Workspace
 from .errors import BlockerError
+from .. import proc
 
 
 Severity = Literal["info", "warn", "error"]
@@ -934,7 +935,7 @@ def _list_orphan_canopy_mcp_pids() -> list[int]:
     if compat.IS_WINDOWS:
         return []   # no `ps`, and "reparented to PID 1" has no Windows equivalent
     try:
-        out = subprocess.run(
+        out = proc.run(
             ["ps", "-eo", "pid=,ppid=,command="],
             capture_output=True, text=True, encoding="utf-8", timeout=5,
         )
@@ -1562,7 +1563,7 @@ def _save_features_raw(workspace_root: Path, features: dict[str, Any]) -> None:
 def _read_binary_version(binary_path: str) -> str | None:
     """Run ``<binary> --version`` and return the version token, or None."""
     try:
-        out = subprocess.run(
+        out = proc.run(
             [binary_path, "--version"],
             capture_output=True, text=True, encoding="utf-8", check=False, timeout=5,
         )
