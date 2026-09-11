@@ -3253,7 +3253,7 @@ def cmd_reply_thread(args: argparse.Namespace) -> None:
 
 
 def cmd_resolve_thread(args: argparse.Namespace) -> None:
-    """Resolve a GitHub PR review thread and record the resolution locally."""
+    """Resolve a PR review thread and record the resolution locally."""
     from ..management.thread_actions import resolve_thread
     from ..actions.errors import ActionError
     from .render import render_blocker
@@ -4103,7 +4103,10 @@ def main() -> None:
         "reply",
         help="Post a reply to a GH review thread",
     )
-    reply_p.add_argument("thread_id", help="Thread node ID (starts with PRRT_)")
+    reply_p.add_argument(
+        "thread_id",
+        help="Thread id: GitHub node id (PRRT_...) or Bitbucket bb:<workspace>/<repo>#<pr>/<comment>",
+    )
     _reply_body_g = reply_p.add_mutually_exclusive_group()
     _reply_body_g.add_argument("--body", default=None,
                                help="Reply body text")
@@ -4119,7 +4122,10 @@ def main() -> None:
         "resolve",
         help="Resolve a GitHub PR review thread and record it locally",
     )
-    resolve_p.add_argument("thread_id", help="Thread node ID (starts with PRRT_)")
+    resolve_p.add_argument(
+        "thread_id",
+        help="Thread id: GitHub node id (PRRT_...) or Bitbucket bb:<workspace>/<repo>#<pr>/<comment>",
+    )
     resolve_p.add_argument("--feature", default=None,
                            help="Feature alias; defaults to canonical feature")
     resolve_p.add_argument("--json", action="store_true", help="Output as JSON")

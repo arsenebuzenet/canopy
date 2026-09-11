@@ -1,22 +1,25 @@
-"""Thread action wrappers — resolve, reply, unresolve a GitHub review thread.
+"""Thread action wrappers — resolve, reply, unresolve a review thread.
 
-Each wrapper calls the GitHub integration and records the event locally in
-``.canopy/state/thread_resolutions.json`` so the resume brief can attribute
-"resolved by canopy" vs "resolved on GitHub directly".
+Each wrapper calls the review-platform façade and records the event locally
+in ``.canopy/state/thread_resolutions.json`` so the resume brief can
+attribute "resolved by canopy" vs "resolved on the platform directly".
+
+Thread ids are GitHub node ids (``PRRT_…``) or Bitbucket coordinates
+(``bb:<workspace>/<repo>#<pr>/<comment>``); the façade dispatches on the form.
 """
 from __future__ import annotations
 
 from ..workspace.workspace import Workspace
 from ..actions.errors import ActionError, BlockerError
+from ..integrations import review
 from . import thread_resolutions as tr
 
 
 def _validate_thread_id(thread_id: str) -> None:
-    if not thread_id.startswith("PRRT_"):
-        raise BlockerError(
-            code="invalid_thread_id",
-            what=f"thread_id must start with 'PRRT_'; got {thread_id!r}",
-        )
+    try:
+        review.parse_thread_id(thread_id)
+    except ValueError as e:
+        raise BlockerError(code="invalid_thread_id", what=str(e))
 
 
 def resolve_thread(
@@ -27,21 +30,13 @@ def resolve_thread(
     via_command: str = "resolve",
     via_commit_sha: str | None = None,
 ) -> dict:
-    """Resolve a GitHub PR review thread and record it locally.
-
-    Steps:
-    1. Validate thread_id format.
-    2. Call the GitHub GraphQL mutation.
-    3. Log the resolution to ``.canopy/state/thread_resolutions.json``.
-    4. Return the combined result.
+    """Resolve a review thread and record it locally.
 
     Raises:
-        BlockerError: if ``thread_id`` does not start with ``PRRT_``.
+        BlockerError: if ``thread_id`` matches neither platform's form.
     """
-    from ..integrations import github as gh
-
     _validate_thread_id(thread_id)
-    gh_result = gh.resolve_thread(workspace.config.root, thread_id)
+    result = review.resolve_thread(workspace.config.root, thread_id)
     log_entry = tr.record(
         workspace.config.root,
         thread_id=thread_id,
@@ -49,7 +44,7 @@ def resolve_thread(
         via_command=via_command,
         via_commit_sha=via_commit_sha,
     )
-    return {**gh_result, "logged": log_entry}
+    return {**result, "logged": log_entry}
 
 
 def reply_to_thread(
@@ -60,22 +55,15 @@ def reply_to_thread(
     feature: str,
     resolve_after: bool = False,
 ) -> dict:
-    """Post a reply to a GitHub PR review thread, optionally resolving it.
-
-    Steps:
-    1. Validate thread_id format.
-    2. Post the reply via the GitHub GraphQL mutation.
-    3. If ``resolve_after`` is True, resolve the thread and include the result.
+    """Post a reply to a review thread, optionally resolving it.
 
     Returns a dict with ``posted`` and optionally ``resolved`` keys.
 
     Raises:
-        BlockerError: if ``thread_id`` does not start with ``PRRT_``.
+        BlockerError: if ``thread_id`` matches neither platform's form.
     """
-    from ..integrations import github as gh
-
     _validate_thread_id(thread_id)
-    posted = gh.reply_to_thread(workspace.config.root, thread_id, body)
+    posted = review.reply_to_thread(workspace.config.root, thread_id, body)
     result: dict = {"posted": posted}
     if resolve_after:
         try:
