@@ -363,6 +363,17 @@ def test_resolve_reviewers_unknown_raises(api):
     assert exc_info.value.names == ["ghost"]
 
 
+def test_resolve_reviewers_ambiguous_name_raises(api):
+    api.routes[("GET", f"/workspaces/{WS}/members")] = {"values": [
+        {"user": {"uuid": "{a}", "nickname": "jsmith", "display_name": "John Smith"}},
+        {"user": {"uuid": "{b}", "nickname": "john.smith", "display_name": "John Smith"}},
+    ]}
+    with pytest.raises(bb.UnknownReviewerError) as exc_info:
+        bb.resolve_reviewers(WS, ["John Smith", "jsmith"])
+    assert exc_info.value.names == ["John Smith"]
+    assert "ambiguous" in str(exc_info.value)
+
+
 def test_update_pr_body_puts_description(api):
     api.routes[("PUT", f"{REPO}/pullrequests/26")] = lambda params, body: _pr(description=body["description"])
     bb.update_pr_body(Path("."), WS, SLUG, 26, "new body")

@@ -278,31 +278,34 @@ class UnknownReviewerError(Exception):
     """One or more reviewer names didn't match a workspace member."""
 
     def __init__(self, names: list[str]):
-        super().__init__(f"unknown reviewers: {', '.join(names)}")
+        super().__init__(f"unknown or ambiguous reviewers: {', '.join(names)}; pass the {{uuid}} instead")
         self.names = names
 
 
 def resolve_reviewers(owner: str, names: list[str]) -> list[str]:
     """Map nicknames / display names to uuids via the workspace member list.
-    Values already shaped like ``{uuid}`` pass through untouched."""
+    Values already shaped like ``{uuid}`` pass through untouched; a name shared
+    by two or more members (case-insensitively) is rejected as ambiguous."""
     pending = [n for n in names if not (n.startswith("{") and n.endswith("}"))]
-    by_name: dict[str, str] = {}
+    by_name: dict[str, set[str]] = {}
     if pending:
         for member in _paginate(f"/workspaces/{owner}/members"):
             user = member.get("user") or {}
             uuid = user.get("uuid") or ""
             for key in (user.get("nickname"), user.get("display_name")):
                 if key:
-                    by_name[key.lower()] = uuid
+                    by_name.setdefault(key.lower(), set()).add(uuid)
     out: list[str] = []
     unknown: list[str] = []
     for name in names:
         if name.startswith("{") and name.endswith("}"):
             out.append(name)
-        elif name.lower() in by_name:
-            out.append(by_name[name.lower()])
         else:
-            unknown.append(name)
+            uuids = by_name.get(name.lower())
+            if uuids and len(uuids) == 1:
+                out.append(next(iter(uuids)))
+            else:
+                unknown.append(name)
     if unknown:
         raise UnknownReviewerError(unknown)
     return out
