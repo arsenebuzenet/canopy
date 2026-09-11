@@ -491,6 +491,16 @@ def test_list_review_threads_uses_from_line_for_removed_side(api):
     assert threads[0]["comments"][0]["line"] == 8
 
 
+def test_list_review_threads_orders_root_first_even_if_api_returns_reply_first(api):
+    reply = _comment(801, "reply first", parent=800, created="2026-09-10T12:00:00+00:00")
+    root = _comment(800, "root later in payload", created="2026-09-10T11:00:00+00:00")
+    api.routes[("GET", f"{REPO}/pullrequests/26/comments")] = {"values": [reply, root]}
+    threads = bb.list_review_threads(Path("."), WS, SLUG, 26)
+    assert len(threads) == 1
+    assert [c["comment_id"] for c in threads[0]["comments"]] == [800, 801]
+    assert threads[0]["thread_id"] == "bb:filoventeam/report.server#26/800"
+
+
 def test_get_review_comments_drops_resolved(api):
     api.routes[("GET", f"{REPO}/pullrequests/26/comments")] = COMMENTS
     comments, resolved = bb.get_review_comments(Path("."), WS, SLUG, 26)

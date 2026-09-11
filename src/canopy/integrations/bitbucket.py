@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import compat
-from .platforms import PlatformNotConfiguredError, format_bitbucket_thread_id
+from .platforms import PlatformNotConfiguredError, build_comments_from_threads, format_bitbucket_thread_id
 
 API_ROOT = "https://api.bitbucket.org/2.0"
 _TOKEN_URL = "https://id.atlassian.com/manage-profile/security/api-tokens"
@@ -434,6 +434,7 @@ def _is_resolved(c: dict) -> bool:
 def list_review_threads(workspace_root: Path, owner: str, slug: str, pr_number: int) -> list[dict]:
     raw = _paginate(f"{_repo_path(owner, slug)}/pullrequests/{pr_number}/comments")
     alive = [c for c in raw if not c.get("deleted")]
+    alive.sort(key=lambda c: (c.get("created_on") or "", c.get("id") or 0))
     parent_of = {c["id"]: (c.get("parent") or {}).get("id") for c in alive}
 
     def root_of(cid: int) -> int:
@@ -444,7 +445,7 @@ def list_review_threads(workspace_root: Path, owner: str, slug: str, pr_number: 
         return cid
 
     threads: dict[int, dict] = {}
-    for c in alive:                      # API order is creation order → root first
+    for c in alive:                      # sorted by created_on → root always precedes its replies
         root_id = root_of(c["id"])
         if root_id not in threads:
             root = c if c["id"] == root_id else next((x for x in alive if x["id"] == root_id), c)
@@ -460,7 +461,6 @@ def list_review_threads(workspace_root: Path, owner: str, slug: str, pr_number: 
 
 
 def get_review_comments(workspace_root: Path, owner: str, slug: str, pr_number: int) -> tuple[list[dict], int]:
-    from .platforms import build_comments_from_threads
     return build_comments_from_threads(list_review_threads(workspace_root, owner, slug, pr_number))
 
 
