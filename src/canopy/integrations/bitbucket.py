@@ -259,10 +259,15 @@ def find_pull_request(workspace_root: Path, owner: str, slug: str, branch: str) 
     values = data.get("values") or []
     if not values:
         return None
-    found = values[0]
-    if "participants" not in found:
-        found = _request("GET", f"{_repo_path(owner, slug)}/pullrequests/{found['id']}") or found
-    return _normalize_pr(found)
+    return _normalize_pr(_with_participants(owner, slug, values[0]))
+
+
+def _with_participants(owner: str, slug: str, listed: dict) -> dict:
+    """Re-fetch a PR from a list payload when ``PR_FIELDS`` didn't take effect,
+    so ``review_decision`` never silently degrades to ``""``."""
+    if "participants" in listed:
+        return listed
+    return _request("GET", f"{_repo_path(owner, slug)}/pullrequests/{listed['id']}") or listed
 
 
 def get_pull_request_by_number(workspace_root: Path, owner: str, slug: str, pr_number: int) -> dict | None:
@@ -287,7 +292,7 @@ def list_open_prs(
     values = _paginate(f"{_repo_path(owner, slug)}/pullrequests",
                        params={"q": query, "fields": PR_FIELDS, "pagelen": min(limit, 50)},
                        limit=limit)
-    return [_normalize_pr(v) for v in values]
+    return [_normalize_pr(_with_participants(owner, slug, v)) for v in values]
 
 
 class UnknownReviewerError(Exception):
@@ -459,9 +464,12 @@ def _is_resolved(c: dict) -> bool:
 
 def list_review_threads(workspace_root: Path, owner: str, slug: str, pr_number: int) -> list[dict]:
     raw = _paginate(f"{_repo_path(owner, slug)}/pullrequests/{pr_number}/comments")
-    alive = [c for c in raw if not c.get("deleted")]
-    alive.sort(key=lambda c: (c.get("created_on") or "", c.get("id") or 0))
-    parent_of = {c["id"]: (c.get("parent") or {}).get("id") for c in alive}
+    raw.sort(key=lambda c: (c.get("created_on") or "", c.get("id") or 0))
+    # Parent links and resolution state come from every comment, deleted
+    # ones included: Bitbucket keeps ``resolution`` on the root only, and a
+    # deleted root must still resolve the thread its surviving replies form.
+    by_id = {c["id"]: c for c in raw}
+    parent_of = {c["id"]: (c.get("parent") or {}).get("id") for c in raw}
 
     def root_of(cid: int) -> int:
         seen = set()
@@ -471,10 +479,12 @@ def list_review_threads(workspace_root: Path, owner: str, slug: str, pr_number: 
         return cid
 
     threads: dict[int, dict] = {}
-    for c in alive:                      # sorted by created_on → root always precedes its replies
+    for c in raw:                        # sorted by created_on → root always precedes its replies
+        if c.get("deleted"):
+            continue
         root_id = root_of(c["id"])
         if root_id not in threads:
-            root = c if c["id"] == root_id else next((x for x in alive if x["id"] == root_id), c)
+            root = by_id.get(root_id, c)
             res = root.get("resolution") or {}
             threads[root_id] = {
                 "thread_id": format_bitbucket_thread_id(owner, slug, pr_number, root_id),

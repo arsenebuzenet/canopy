@@ -342,6 +342,19 @@ def test_list_open_prs_no_author(api):
     assert api.calls[0][2]["q"] == 'state = "OPEN"'
 
 
+def test_list_open_prs_refetches_when_list_omits_participants(api):
+    slim = {k: v for k, v in _pr(state="OPEN", id=7).items() if k not in ("participants", "reviewers")}
+    api.routes[("GET", f"{REPO}/pullrequests")] = {"values": [slim]}
+    api.routes[("GET", f"{REPO}/pullrequests/7")] = _pr(
+        state="OPEN", id=7, reviewers=[{"uuid": "{r}"}],
+        participants=[{"user": {"uuid": "{a}"}, "role": "REVIEWER",
+                       "approved": True, "state": "approved"}],
+    )
+    prs = bb.list_open_prs(Path("."), WS, SLUG)
+    assert [p["review_decision"] for p in prs] == ["APPROVED"]
+    assert [c[1] for c in api.calls] == [f"{REPO}/pullrequests", f"{REPO}/pullrequests/7"]
+
+
 def test_list_open_prs_respects_limit(api):
     api.routes[("GET", f"{REPO}/pullrequests")] = {"values": [_pr(state="OPEN", id=i) for i in range(5)]}
     assert len(bb.list_open_prs(Path("."), WS, SLUG, limit=2)) == 2
@@ -538,6 +551,27 @@ def test_list_review_threads_orders_root_first_even_if_api_returns_reply_first(a
     assert len(threads) == 1
     assert [c["comment_id"] for c in threads[0]["comments"]] == [800, 801]
     assert threads[0]["thread_id"] == "bb:filoventeam/report.server#26/800"
+
+
+def test_list_review_threads_deleted_root_keeps_resolution_and_thread_id(api):
+    root = _comment(900, "root, later deleted", resolved=True, deleted=True,
+                    created="2026-09-10T11:00:00+00:00")
+    reply = _comment(901, "surviving reply", parent=900, created="2026-09-10T12:00:00+00:00")
+    api.routes[("GET", f"{REPO}/pullrequests/26/comments")] = {"values": [root, reply]}
+    threads = bb.list_review_threads(Path("."), WS, SLUG, 26)
+    assert len(threads) == 1
+    t = threads[0]
+    assert t["thread_id"] == "bb:filoventeam/report.server#26/900"
+    assert t["is_resolved"] is True
+    assert t["resolved_at"] == "2026-09-10T12:00:00+00:00"
+    assert [c["comment_id"] for c in t["comments"]] == [901]
+
+
+def test_list_review_threads_skips_fully_deleted_thread(api):
+    root = _comment(910, "deleted root", deleted=True)
+    reply = _comment(911, "deleted reply", parent=910, deleted=True)
+    api.routes[("GET", f"{REPO}/pullrequests/26/comments")] = {"values": [root, reply]}
+    assert bb.list_review_threads(Path("."), WS, SLUG, 26) == []
 
 
 def test_get_review_comments_drops_resolved(api):
