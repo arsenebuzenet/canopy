@@ -85,9 +85,14 @@ def _enrich(
     per_repo: dict[str, dict] = {}
     for canopy_repo, pr in group["repos"].items():
         remote = _resolve_remote(workspace, canopy_repo)
-        comments, _resolved = review.get_review_comments(
-            workspace.config.root, remote, pr["number"],
-        )
+        try:
+            comments, _resolved = review.get_review_comments(
+                workspace.config.root, remote, pr["number"],
+            )
+        except review.ReviewApiError:
+            # One repo's comment fetch failing must not abort the whole
+            # triage; the GitHub backend already degrades to no comments.
+            comments = []
         state = workspace.get_repo(canopy_repo)
         classification = classify_threads(
             comments, state.abs_path, pr.get("head_branch") or "",

@@ -98,6 +98,48 @@ def test_groups_multi_repo_feature_via_explicit_lane(workspace_with_feature):
     assert set(f["repos"].keys()) == {"repo-a", "repo-b"}
 
 
+def test_comment_fetch_api_error_degrades_to_no_comments(workspace_with_feature):
+    """A review-platform API failure on one repo must not abort triage."""
+    from canopy.integrations.review import ReviewApiError
+
+    ws = _make_workspace(workspace_with_feature)
+    _set_remote(workspace_with_feature / "repo-a", "git@bitbucket.org:owner/repo-a.git")
+    _set_remote(workspace_with_feature / "repo-b", "git@bitbucket.org:owner/repo-b.git")
+
+    def _list(workspace_root, owner, slug, author=None, **kw):
+        return [_pr(100, "auth-flow")] if slug == "repo-a" else []
+
+    def _comments(workspace_root, owner, slug, pr_number):
+        raise ReviewApiError(503, "unavailable")
+
+    with patch("canopy.integrations.bitbucket.list_open_prs", side_effect=_list), \
+         patch("canopy.integrations.bitbucket.get_review_comments", side_effect=_comments):
+        result = triage(ws)
+
+    assert len(result["features"]) == 1
+    assert result["features"][0]["repos"]["repo-a"]["actionable_count"] == 0
+
+
+def test_list_api_error_degrades_to_no_prs(workspace_with_feature):
+    """A review-platform API failure while listing PRs yields no PRs for that repo."""
+    from canopy.integrations.review import ReviewApiError
+
+    ws = _make_workspace(workspace_with_feature)
+    _set_remote(workspace_with_feature / "repo-a", "git@bitbucket.org:owner/repo-a.git")
+    _set_remote(workspace_with_feature / "repo-b", "git@bitbucket.org:owner/repo-b.git")
+
+    def _list(workspace_root, owner, slug, author=None, **kw):
+        if slug == "repo-a":
+            raise ReviewApiError(0, "connection reset")
+        return [_pr(200, "auth-flow")]
+
+    with patch("canopy.integrations.bitbucket.list_open_prs", side_effect=_list), \
+         patch("canopy.integrations.bitbucket.get_review_comments", return_value=([], 0)):
+        result = triage(ws)
+
+    assert [set(f["repos"]) for f in result["features"]] == [{"repo-b"}]
+
+
 # ── Implicit feature (branch shared, not in features.json) ──────────────
 
 def test_implicit_feature_when_branch_shared(workspace_with_feature):

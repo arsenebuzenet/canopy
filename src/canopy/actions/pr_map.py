@@ -29,6 +29,10 @@ def _fetch_open_prs(
             out[repo_name] = review.list_open_prs(
                 workspace.config.root, remote, author=author,
             )
+        except review.ReviewApiError:
+            # Same degradation as the GitHub backend on a gh failure: no PRs
+            # for this repo rather than an aborted multi-repo read.
+            out[repo_name] = []
         except review.PlatformNotConfiguredError as e:
             from .errors import FixAction
             payload = e.payload or {}
