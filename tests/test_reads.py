@@ -159,7 +159,7 @@ def test_github_get_pr_specific_form(workspace_with_feature):
         "body": "", "review_decision": "CHANGES_REQUESTED",
         "mergeable": "MERGEABLE", "draft": False,
     }
-    with patch("canopy.management.reads.gh.get_pull_request_by_number",
+    with patch("canopy.integrations.github.get_pull_request_by_number",
                return_value=fake_pr):
         result = github_get_pr(ws, "repo-a#1287")
     assert "repo-a" in result["repos"]
@@ -171,7 +171,7 @@ def test_github_get_pr_specific_form(workspace_with_feature):
 def test_github_get_pr_url_form(workspace_with_feature):
     ws = _make_workspace(workspace_with_feature)
     _set_remote(workspace_with_feature / "repo-a", "git@github.com:owner/repo-a.git")
-    with patch("canopy.management.reads.gh.get_pull_request_by_number",
+    with patch("canopy.integrations.github.get_pull_request_by_number",
                return_value={"number": 99, "title": "x", "url": "u",
                              "state": "open", "head_branch": "b", "base_branch": "dev",
                              "body": "", "review_decision": "", "mergeable": "", "draft": False}):
@@ -197,7 +197,7 @@ def test_github_get_pr_via_feature_alias_multi_repo(workspace_with_feature):
     # not review_status, since it operates on per-repo expected branches.
     with patch("canopy.integrations.github.find_pull_request",
                return_value=fake_pr_for_alias) as _, \
-         patch("canopy.management.reads.gh.get_pull_request_by_number",
+         patch("canopy.integrations.github.get_pull_request_by_number",
                return_value=fake_pr_for_alias):
         result = github_get_pr(ws, "auth-flow")
 
@@ -207,7 +207,7 @@ def test_github_get_pr_via_feature_alias_multi_repo(workspace_with_feature):
 def test_github_get_pr_not_found_marks_found_false(workspace_with_feature):
     ws = _make_workspace(workspace_with_feature)
     _set_remote(workspace_with_feature / "repo-a", "git@github.com:owner/repo-a.git")
-    with patch("canopy.management.reads.gh.get_pull_request_by_number",
+    with patch("canopy.integrations.github.get_pull_request_by_number",
                return_value=None):
         result = github_get_pr(ws, "repo-a#999")
     assert result["repos"]["repo-a"]["found"] is False
@@ -271,9 +271,9 @@ def test_github_get_pr_comments_specific_form(workspace_with_feature):
                 "head_branch": "auth-flow", "base_branch": "dev", "body": "",
                 "review_decision": "", "mergeable": "", "draft": False}
 
-    with patch("canopy.management.reads.gh.get_review_comments",
+    with patch("canopy.integrations.github.get_review_comments",
                return_value=fake_comments), \
-         patch("canopy.management.reads.gh.get_pull_request_by_number",
+         patch("canopy.integrations.github.get_pull_request_by_number",
                return_value=fake_pr):
         result = github_get_pr_comments(ws, "repo-a#42")
 

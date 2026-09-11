@@ -290,18 +290,23 @@ class TestGitHubConfig:
 
 class TestReviewStatus:
     def test_no_github_config_raises(self, workspace_with_feature, canopy_toml, monkeypatch):
-        """review_status raises if neither GitHub MCP nor gh CLI is available."""
+        """review_status raises if the repo's platform has no configured transport."""
+        import subprocess
         from canopy.workspace.config import load_config
         from canopy.workspace.workspace import Workspace
         from canopy.management import review_ops
+        from canopy.integrations.platforms import PlatformNotConfiguredError
 
+        subprocess.run(["git", "remote", "add", "origin", "git@github.com:owner/repo-a.git"],
+                       cwd=workspace_with_feature / "repo-a", check=True,
+                       capture_output=True, text=True, encoding="utf-8")
         # Force both transports off.
         monkeypatch.setattr("canopy.integrations.github.have_gh_cli", lambda: False)
 
         config = load_config(canopy_toml)
         ws = Workspace(config)
 
-        with pytest.raises(GitHubNotConfiguredError):
+        with pytest.raises(PlatformNotConfiguredError):
             review_ops.review_status(ws, "auth-flow")
 
 

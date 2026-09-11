@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..git import repo as git
-from ..integrations import github as gh
+from ..integrations import review
 from ..providers import (
     IssueNotFoundError,
     ProviderNotConfigured,
@@ -142,14 +142,15 @@ def github_get_pr(workspace: Workspace, alias: str) -> dict:
     targets = resolve_pr_targets(workspace, alias)
     repos: dict[str, dict] = {}
     for t in targets:
-        pr = gh.get_pull_request_by_number(
-            workspace.config.root, t.owner, t.repo_slug, t.pr_number,
+        pr = review.get_pull_request_by_number(
+            workspace.config.root, t.remote, t.pr_number,
         )
         if pr is None:
             repos[t.repo] = {
                 "pr_number": t.pr_number,
                 "owner": t.owner,
                 "repo_slug": t.repo_slug,
+                "platform": t.platform,
                 "found": False,
             }
         else:
@@ -157,6 +158,7 @@ def github_get_pr(workspace: Workspace, alias: str) -> dict:
                 "pr_number": t.pr_number,
                 "owner": t.owner,
                 "repo_slug": t.repo_slug,
+                "platform": t.platform,
                 "found": True,
                 **pr,
             }
@@ -223,13 +225,13 @@ def github_get_pr_comments(workspace: Workspace, alias: str) -> dict:
     resolved_total = 0
 
     for t in targets:
-        comments, resolved_count = gh.get_review_comments(
-            workspace.config.root, t.owner, t.repo_slug, t.pr_number,
+        comments, resolved_count = review.get_review_comments(
+            workspace.config.root, t.remote, t.pr_number,
         )
         state = workspace.get_repo(t.repo)
         # Need the PR's head branch to anchor the temporal classifier.
-        pr = gh.get_pull_request_by_number(
-            workspace.config.root, t.owner, t.repo_slug, t.pr_number,
+        pr = review.get_pull_request_by_number(
+            workspace.config.root, t.remote, t.pr_number,
         )
         branch = (pr or {}).get("head_branch") or state.current_branch
         classification = classify_threads(comments, state.abs_path, branch)

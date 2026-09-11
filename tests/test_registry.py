@@ -97,7 +97,8 @@ def test_remote_overlay_adds_checks_summary(canopy_toml_for_workspace, monkeypat
         "repo-b": [],
     })
     import canopy.actions.aliases as aliases
-    monkeypatch.setattr(aliases, "_resolve_owner_slug", lambda ws, repo: ("acme", repo))
+    from canopy.integrations.platforms import RemoteRef
+    monkeypatch.setattr(aliases, "_resolve_remote", lambda ws, repo: RemoteRef("github", "acme", repo))
     import canopy.integrations.github as gh
     monkeypatch.setattr(gh, "get_pr_checks", lambda root, owner, slug, num: (
         {"status": "passing", "passed": 3, "failing": 0, "pending": 0}, []))

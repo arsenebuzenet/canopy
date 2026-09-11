@@ -16,10 +16,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..integrations import github as gh
+from ..integrations import review
 from ..workspace.workspace import Workspace
 from ..actions import slots as slots_mod
-from ..actions.aliases import _resolve_owner_slug
+from ..actions.aliases import _resolve_remote
 from ..actions.pr_map import _fetch_open_prs, _group_by_feature, _select_repos
 from .review_filter import classify_threads
 
@@ -60,7 +60,7 @@ def triage(
         path.
 
     Raises:
-        BlockerError: if no GitHub transport is available, or if a
+        BlockerError: if no review platform transport is available, or if a
             requested repo is unknown.
     """
     target_repos = _select_repos(workspace, repos)
@@ -84,9 +84,9 @@ def _enrich(
     is_canonical = canonical_feature == feature_name
     per_repo: dict[str, dict] = {}
     for canopy_repo, pr in group["repos"].items():
-        owner, slug = _resolve_owner_slug(workspace, canopy_repo)
-        comments, _resolved = gh.get_review_comments(
-            workspace.config.root, owner, slug, pr["number"],
+        remote = _resolve_remote(workspace, canopy_repo)
+        comments, _resolved = review.get_review_comments(
+            workspace.config.root, remote, pr["number"],
         )
         state = workspace.get_repo(canopy_repo)
         classification = classify_threads(

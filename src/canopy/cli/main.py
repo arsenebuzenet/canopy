@@ -1413,7 +1413,8 @@ def cmd_review(args: argparse.Namespace) -> None:
     3. Run pre-commit hooks + stage changes (preflight)
     """
     from .ui import console, spinner, separator, print_success, print_warning, print_error, SYM_CHECK, SYM_CROSS, SYM_LINK
-    from ..integrations.github import GitHubNotConfiguredError, PullRequestNotFoundError
+    from ..integrations.platforms import PlatformNotConfiguredError
+    from ..integrations.github import PullRequestNotFoundError
 
     workspace = _load_workspace()
     from ..management.review_ops import (
@@ -1428,7 +1429,7 @@ def cmd_review(args: argparse.Namespace) -> None:
     try:
         with spinner(f"Checking PRs for {feature}..."):
             status = review_status_op(workspace, feature)
-    except GitHubNotConfiguredError as e:
+    except PlatformNotConfiguredError as e:
         print_error(str(e))
         sys.exit(1)
     except ValueError as e:
@@ -2780,15 +2781,15 @@ def cmd_drift(args: argparse.Namespace) -> None:
 def cmd_pr_checks(args: argparse.Namespace) -> None:
     """Fetch CI check runs for a PR alias (M10)."""
     from ..actions.aliases import resolve_pr_targets
-    from ..integrations import github as gh
+    from ..integrations import review
     from .ui import console
 
     workspace = _load_workspace()
     targets = resolve_pr_targets(workspace, args.alias)
     results = []
     for t in targets:
-        rollup, raw = gh.get_pr_checks(
-            workspace.config.root, t.owner, t.repo_slug, t.pr_number,
+        rollup, raw = review.get_pr_checks(
+            workspace.config.root, t.remote, t.pr_number,
         )
         results.append({
             "repo": t.repo,

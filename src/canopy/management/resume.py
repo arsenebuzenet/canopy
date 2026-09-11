@@ -242,45 +242,46 @@ def _commits_since(workspace: Workspace, feature: str, since_iso: str) -> dict[s
 def _pr_coords_per_repo(
     workspace: Workspace, feature: str,
 ) -> dict[str, dict | None]:
-    """Return {repo_name: {"owner": str, "repo_slug": str, "pr_number": int} | None}.
+    """Return {repo_name: {"platform", "owner", "repo_slug", "pr_number"} | None}.
 
     Uses the same pattern as FeatureCoordinator.review_status: iterates repos
-    in the feature lane, resolves remote URL → owner/slug, finds the open PR.
-    On any per-repo error (no remote, unparseable URL, no PR) returns None for
-    that repo. Propagates only hard exceptions (feature not found, etc.).
+    in the feature lane, resolves remote URL → platform owner/slug, finds the
+    open PR. On any per-repo error (no remote, unparseable URL, no PR) returns
+    None for that repo. Propagates only hard exceptions (feature not found).
     """
-    from ..git import repo as git
-    from ..integrations.github import _extract_owner_repo, find_pull_request
-    from ..actions.aliases import repos_for_feature
+    from ..integrations import review
+    from ..actions.aliases import _resolve_remote, repos_for_feature
+    from ..actions.errors import BlockerError
 
     repos_map = repos_for_feature(workspace, feature)
     out: dict[str, dict | None] = {}
 
     for repo_name, branch in repos_map.items():
         try:
-            state = workspace.get_repo(repo_name)
-            remote = git.remote_url(state.abs_path)
-            if not remote:
+            try:
+                remote = _resolve_remote(workspace, repo_name)
+            except BlockerError:
                 out[repo_name] = None
                 continue
-            parsed = _extract_owner_repo(remote)
-            if not parsed:
-                out[repo_name] = None
-                continue
-            owner, repo_slug = parsed
-            pr = find_pull_request(workspace.config.root, owner, repo_slug, branch)
+            pr = review.find_pull_request(workspace.config.root, remote, branch)
             if pr is None:
                 out[repo_name] = None
             else:
                 out[repo_name] = {
-                    "owner": owner,
-                    "repo_slug": repo_slug,
+                    "platform": remote.platform,
+                    "owner": remote.owner,
+                    "repo_slug": remote.slug,
                     "pr_number": pr["number"],
                 }
         except Exception:
             out[repo_name] = None
 
     return out
+
+
+def _coords_remote(coords: dict):
+    from ..integrations.platforms import RemoteRef
+    return RemoteRef(coords.get("platform", "github"), coords["owner"], coords["repo_slug"])
 
 
 def _threads_delta(
@@ -292,7 +293,7 @@ def _threads_delta(
     GH unreachable, etc.), returns {"new": [], "resolved_gh": []} and
     swallows. Never crashes the brief.
     """
-    from ..integrations import github as gh
+    from ..integrations import review
     from . import thread_resolutions as tr
 
     try:
@@ -307,12 +308,10 @@ def _threads_delta(
     for repo_name, coords in pr_coords.items():
         if not coords:
             continue
-        owner = coords["owner"]
-        repo_slug = coords["repo_slug"]
         pr_number = coords["pr_number"]
         try:
-            threads = gh.list_review_threads(
-                workspace.config.root, owner, repo_slug, pr_number,
+            threads = review.list_review_threads(
+                workspace.config.root, _coords_remote(coords), pr_number,
             )
         except Exception:
             continue
@@ -463,7 +462,7 @@ def _open_thread_count(workspace: Workspace, feature: str) -> int:
     # TODO: cache list_review_threads per resume call to avoid 2x round-trips
     # when _threads_delta already ran in _populate_since (milestone-3 item).
     """
-    from ..integrations import github as gh
+    from ..integrations import review
 
     try:
         pr_coords = _pr_coords_per_repo(workspace, feature)
@@ -475,11 +474,8 @@ def _open_thread_count(workspace: Workspace, feature: str) -> int:
         if not coords:
             continue
         try:
-            threads = gh.list_review_threads(
-                workspace.config.root,
-                coords["owner"],
-                coords["repo_slug"],
-                coords["pr_number"],
+            threads = review.list_review_threads(
+                workspace.config.root, _coords_remote(coords), coords["pr_number"],
             )
         except Exception:
             continue
