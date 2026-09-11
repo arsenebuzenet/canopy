@@ -164,7 +164,7 @@ def _per_repo_facts(
                 pr = review.find_pull_request(
                     workspace.config.root, remote, branch,
                 )
-            except review.PlatformNotConfiguredError:
+            except (review.PlatformNotConfiguredError, review.ReviewApiError):
                 pr = None
             if pr:
                 facts["pr"] = pr
