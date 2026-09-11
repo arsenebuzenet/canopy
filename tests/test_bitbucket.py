@@ -378,3 +378,42 @@ def test_update_pr_body_puts_description(api):
     api.routes[("PUT", f"{REPO}/pullrequests/26")] = lambda params, body: _pr(description=body["description"])
     bb.update_pr_body(Path("."), WS, SLUG, 26, "new body")
     assert api.calls[0][3] == {"description": "new body"}
+
+
+# ── checks ───────────────────────────────────────────────────────────────
+
+def _status(name, state):
+    return {"key": name, "name": name, "state": state, "url": f"https://ci/{name}"}
+
+
+def test_get_pr_checks_rollup(api):
+    api.routes[("GET", f"{REPO}/pullrequests/26")] = PR_26
+    api.routes[("GET", f"{REPO}/commit/3df742df3d63/statuses")] = {"values": [
+        _status("build", "SUCCESSFUL"), _status("lint", "FAILED"),
+        _status("e2e", "INPROGRESS"), _status("old", "STOPPED"),
+    ]}
+    rollup, raw = bb.get_pr_checks(Path("."), WS, SLUG, 26)
+    assert rollup == {
+        "status": "failing", "passed": 1, "failing": 2, "pending": 1, "skipped": 0,
+        "required_failing": ["lint", "old"], "required_pending": ["e2e"],
+        "details_url": "https://bitbucket.org/filoventeam/report.server/pull-requests/26",
+    }
+    assert len(raw) == 4
+
+
+def test_get_pr_checks_no_statuses(api):
+    api.routes[("GET", f"{REPO}/pullrequests/26")] = PR_26
+    api.routes[("GET", f"{REPO}/commit/3df742df3d63/statuses")] = {"values": []}
+    assert bb.get_pr_checks(Path("."), WS, SLUG, 26) == ({"status": "no_checks"}, [])
+
+
+def test_get_pr_checks_swallows_errors(api):
+    # No routes at all → 404 on the PR fetch → best-effort sentinel.
+    assert bb.get_pr_checks(Path("."), WS, SLUG, 26) == ({"status": "no_checks"}, [])
+
+
+def test_get_pr_checks_all_passing(api):
+    api.routes[("GET", f"{REPO}/pullrequests/26")] = PR_26
+    api.routes[("GET", f"{REPO}/commit/3df742df3d63/statuses")] = {"values": [_status("build", "SUCCESSFUL")]}
+    rollup, _ = bb.get_pr_checks(Path("."), WS, SLUG, 26)
+    assert rollup["status"] == "passing" and rollup["passed"] == 1

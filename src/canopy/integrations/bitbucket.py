@@ -338,3 +338,63 @@ def create_pr(
 
 def update_pr_body(workspace_root: Path, owner: str, slug: str, pr_number: int, body: str) -> None:
     _request("PUT", f"{_repo_path(owner, slug)}/pullrequests/{pr_number}", body={"description": body})
+
+
+# ── commit statuses (CI) ─────────────────────────────────────────────────
+
+def get_pr_checks(workspace_root: Path, owner: str, slug: str, pr_number: int) -> tuple[dict, list[dict]]:
+    """Roll the PR head commit's statuses up to the github-shaped summary.
+
+    Best-effort like the GitHub path: any failure returns ``no_checks``
+    rather than raising, so CI never bricks ``feature_state``.
+    """
+    try:
+        pr = _request("GET", f"{_repo_path(owner, slug)}/pullrequests/{pr_number}") or {}
+        sha = ((pr.get("source") or {}).get("commit") or {}).get("hash") or ""
+        if not sha:
+            return {"status": "no_checks"}, []
+        raw = _paginate(f"{_repo_path(owner, slug)}/commit/{sha}/statuses")
+    except Exception:
+        return {"status": "no_checks"}, []
+    if not raw:
+        return {"status": "no_checks"}, []
+    details_url = ((pr.get("links") or {}).get("html") or {}).get("href", "")
+    return _rollup_statuses(raw, details_url=details_url), raw
+
+
+def _rollup_statuses(raw: list[dict], *, details_url: str) -> dict:
+    passed = failing = pending = skipped = 0
+    failing_names: list[str] = []
+    pending_names: list[str] = []
+    for s in raw:
+        state = (s.get("state") or "").upper()
+        name = s.get("name") or s.get("key") or ""
+        if state == "SUCCESSFUL":
+            passed += 1
+        elif state in ("FAILED", "STOPPED"):
+            failing += 1
+            if name:
+                failing_names.append(name)
+        else:
+            # INPROGRESS and anything unknown: wait rather than claim green.
+            pending += 1
+            if name:
+                pending_names.append(name)
+    if failing:
+        status = "failing"
+    elif pending:
+        status = "pending"
+    elif passed:
+        status = "passing"
+    else:
+        status = "no_checks"
+    return {
+        "status": status,
+        "passed": passed,
+        "failing": failing,
+        "pending": pending,
+        "skipped": skipped,
+        "required_failing": failing_names,
+        "required_pending": pending_names,
+        "details_url": details_url,
+    }
