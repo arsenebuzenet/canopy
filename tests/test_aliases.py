@@ -288,7 +288,49 @@ def test_resolve_pr_url_unmatched_remote_raises(workspace_with_feature):
     _set_remote(workspace_with_feature / "repo-a", "git@github.com:owner/repo-a.git")
     with pytest.raises(BlockerError) as exc_info:
         resolve_pr_targets(ws, "https://github.com/other/repo/pull/1")
-    assert exc_info.value.code == "unknown_github_repo"
+    assert exc_info.value.code == "unknown_remote_repo"
+
+
+# ── RemoteRef resolution (Bitbucket) ─────────────────────────────────────
+
+def test_resolve_pr_url_bitbucket_form(workspace_with_feature):
+    from canopy.actions.aliases import _resolve_remote
+    from canopy.integrations.platforms import RemoteRef
+    ws = _make_workspace(workspace_with_feature)
+    _set_remote(workspace_with_feature / "repo-a", "https://arsene1@bitbucket.org/filoventeam/repo-a.git")
+    targets = resolve_pr_targets(ws, "https://bitbucket.org/filoventeam/repo-a/pull-requests/26")
+    assert targets == [PRTarget("repo-a", "filoventeam", "repo-a", 26, platform="bitbucket")]
+    assert targets[0].remote == RemoteRef("bitbucket", "filoventeam", "repo-a")
+    assert _resolve_remote(ws, "repo-a") == RemoteRef("bitbucket", "filoventeam", "repo-a")
+
+
+def test_resolve_pr_specific_form_carries_platform(workspace_with_feature):
+    ws = _make_workspace(workspace_with_feature)
+    _set_remote(workspace_with_feature / "repo-a", "git@bitbucket.org:filoventeam/repo-a.git")
+    targets = resolve_pr_targets(ws, "repo-a#42")
+    assert targets[0].platform == "bitbucket"
+
+
+def test_pr_target_defaults_to_github():
+    assert PRTarget("repo-a", "owner", "repo-a", 1).platform == "github"
+
+
+def test_resolve_remote_unparseable_raises(workspace_with_feature):
+    from canopy.actions.aliases import _resolve_remote
+    ws = _make_workspace(workspace_with_feature)
+    _set_remote(workspace_with_feature / "repo-a", "https://gitlab.com/o/repo-a.git")
+    with pytest.raises(BlockerError) as exc_info:
+        _resolve_remote(ws, "repo-a")
+    assert exc_info.value.code == "unparseable_remote"
+
+
+def test_resolve_pr_url_wrong_platform_same_slug_raises(workspace_with_feature):
+    """A github PR URL must not match a canopy repo that lives on bitbucket."""
+    ws = _make_workspace(workspace_with_feature)
+    _set_remote(workspace_with_feature / "repo-a", "git@bitbucket.org:owner/repo-a.git")
+    with pytest.raises(BlockerError) as exc_info:
+        resolve_pr_targets(ws, "https://github.com/owner/repo-a/pull/1")
+    assert exc_info.value.code == "unknown_remote_repo"
 
 
 # ── slot-id alias form (T14) ─────────────────────────────────────────────
