@@ -189,3 +189,125 @@ def test_current_user_uuid_is_cached(api):
     assert bb.current_user_uuid() == "{u-1}"
     assert bb.current_user_uuid() == "{u-1}"
     assert len(api.calls) == 1
+
+
+# ── PR reads ─────────────────────────────────────────────────────────────
+
+WS, SLUG = "filoventeam", "report.server"
+REPO = f"/repositories/{WS}/{SLUG}"
+
+PR_26 = {
+    "id": 26,
+    "title": "#11205 retours de test : editeur de carte",
+    "description": "Retours de test de l'editeur de carte.",
+    "state": "MERGED",
+    "draft": False,
+    "author": {"display_name": "Arsene Buzenet", "uuid": "{e399dcb1}", "type": "user"},
+    "source": {"branch": {"name": "feature/#11205-retour-test"},
+               "commit": {"hash": "3df742df3d63"}},
+    "destination": {"branch": {"name": "dev"}, "commit": {"hash": "0b1f3cfc5e0e"}},
+    "links": {"html": {"href": "https://bitbucket.org/filoventeam/report.server/pull-requests/26"}},
+    "reviewers": [],
+    "participants": [{"user": {"uuid": "{e399dcb1}"}, "role": "PARTICIPANT", "approved": False, "state": None}],
+}
+
+
+def _pr(**over):
+    data = json.loads(json.dumps(PR_26))
+    data.update(over)
+    return data
+
+
+def test_normalize_pr_shape():
+    pr = bb._normalize_pr(PR_26)
+    assert pr == {
+        "number": 26,
+        "title": "#11205 retours de test : editeur de carte",
+        "url": "https://bitbucket.org/filoventeam/report.server/pull-requests/26",
+        "state": "merged",
+        "head_branch": "feature/#11205-retour-test",
+        "base_branch": "dev",
+        "head_sha": "3df742df3d63",
+        "body": "Retours de test de l'editeur de carte.",
+        "review_decision": "",
+        "mergeable": "",
+        "draft": False,
+    }
+
+
+@pytest.mark.parametrize("state,expected", [
+    ("OPEN", "open"), ("MERGED", "merged"), ("DECLINED", "closed"), ("SUPERSEDED", "closed"),
+])
+def test_normalize_pr_state_mapping(state, expected):
+    assert bb._normalize_pr(_pr(state=state))["state"] == expected
+
+
+def test_review_decision_changes_requested_wins():
+    data = _pr(state="OPEN", reviewers=[{"uuid": "{r}"}], participants=[
+        {"user": {"uuid": "{a}"}, "role": "REVIEWER", "approved": True, "state": "approved"},
+        {"user": {"uuid": "{b}"}, "role": "REVIEWER", "approved": False, "state": "changes_requested"},
+    ])
+    assert bb._normalize_pr(data)["review_decision"] == "CHANGES_REQUESTED"
+
+
+def test_review_decision_approved():
+    data = _pr(state="OPEN", reviewers=[{"uuid": "{r}"}], participants=[
+        {"user": {"uuid": "{a}"}, "role": "REVIEWER", "approved": True, "state": "approved"},
+    ])
+    assert bb._normalize_pr(data)["review_decision"] == "APPROVED"
+
+
+def test_review_decision_review_required_when_reviewers_pending():
+    data = _pr(state="OPEN", reviewers=[{"uuid": "{r}"}], participants=[
+        {"user": {"uuid": "{r}"}, "role": "REVIEWER", "approved": False, "state": None},
+    ])
+    assert bb._normalize_pr(data)["review_decision"] == "REVIEW_REQUIRED"
+
+
+def test_review_decision_empty_without_reviewers():
+    assert bb._normalize_pr(_pr(state="OPEN"))["review_decision"] == ""
+
+
+def test_find_pull_request_queries_branch(api):
+    api.routes[("GET", f"{REPO}/pullrequests")] = {"values": [_pr(state="OPEN")]}
+    pr = bb.find_pull_request(Path("."), WS, SLUG, "feature/#11205-retour-test")
+    assert pr["number"] == 26 and pr["state"] == "open"
+    _, _, params, _ = api.calls[0]
+    assert params["q"] == 'source.branch.name = "feature/#11205-retour-test" AND state = "OPEN"'
+    assert params["fields"] == bb.PR_FIELDS
+
+
+def test_find_pull_request_none_when_empty(api):
+    api.routes[("GET", f"{REPO}/pullrequests")] = {"values": []}
+    assert bb.find_pull_request(Path("."), WS, SLUG, "nope") is None
+
+
+def test_get_pull_request_by_number(api):
+    api.routes[("GET", f"{REPO}/pullrequests/26")] = PR_26
+    pr = bb.get_pull_request_by_number(Path("."), WS, SLUG, 26)
+    assert pr["number"] == 26 and pr["head_sha"] == "3df742df3d63"
+
+
+def test_get_pull_request_by_number_404_is_none(api):
+    assert bb.get_pull_request_by_number(Path("."), WS, SLUG, 999) is None
+
+
+def test_list_open_prs_me_filters_by_uuid(api):
+    api.routes[("GET", "/user")] = {"uuid": "{me}"}
+    api.routes[("GET", f"{REPO}/pullrequests")] = {"values": [_pr(state="OPEN", id=1), _pr(state="OPEN", id=2)]}
+    prs = bb.list_open_prs(Path("."), WS, SLUG, author="@me")
+    assert [p["number"] for p in prs] == [1, 2]
+    q = [c for c in api.calls if c[1] == f"{REPO}/pullrequests"][0][2]["q"]
+    assert q == 'state = "OPEN" AND author.uuid = "{me}"'
+
+
+def test_list_open_prs_no_author(api):
+    api.routes[("GET", f"{REPO}/pullrequests")] = {"values": [_pr(state="OPEN")]}
+    prs = bb.list_open_prs(Path("."), WS, SLUG)
+    assert len(prs) == 1
+    assert api.calls[0][2]["q"] == 'state = "OPEN"'
+
+
+def test_list_open_prs_respects_limit(api):
+    api.routes[("GET", f"{REPO}/pullrequests")] = {"values": [_pr(state="OPEN", id=i) for i in range(5)]}
+    assert len(bb.list_open_prs(Path("."), WS, SLUG, limit=2)) == 2

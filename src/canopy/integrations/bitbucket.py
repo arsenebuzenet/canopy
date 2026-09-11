@@ -187,3 +187,84 @@ def _reset_cache() -> None:
     """Test-only."""
     global _USER_UUID
     _USER_UUID = None
+
+
+# ── pull requests ─────────────────────────────────────────────────────────
+
+# Partial-response spec appended to list calls: Bitbucket's list payloads
+# omit participants/reviewers, which review_decision needs.
+PR_FIELDS = "+values.participants,+values.reviewers"
+
+_PR_STATE = {"OPEN": "open", "MERGED": "merged", "DECLINED": "closed", "SUPERSEDED": "closed"}
+
+
+def _repo_path(owner: str, slug: str) -> str:
+    return f"/repositories/{owner}/{slug}"
+
+
+def _quote(value: str) -> str:
+    """Quote a value for Bitbucket's ``q`` filter language."""
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _review_decision(data: dict) -> str:
+    participants = data.get("participants") or []
+    states = {(p.get("state") or "").lower() for p in participants}
+    if "changes_requested" in states:
+        return "CHANGES_REQUESTED"
+    if "approved" in states or any(p.get("approved") for p in participants):
+        return "APPROVED"
+    if data.get("reviewers"):
+        return "REVIEW_REQUIRED"
+    return ""
+
+
+def _normalize_pr(data: dict) -> dict:
+    source = data.get("source") or {}
+    dest = data.get("destination") or {}
+    return {
+        "number": data.get("id"),
+        "title": data.get("title") or "",
+        "url": ((data.get("links") or {}).get("html") or {}).get("href", ""),
+        "state": _PR_STATE.get((data.get("state") or "").upper(), "open"),
+        "head_branch": (source.get("branch") or {}).get("name", ""),
+        "base_branch": (dest.get("branch") or {}).get("name", ""),
+        "head_sha": (source.get("commit") or {}).get("hash", ""),
+        "body": data.get("description") or "",
+        "review_decision": _review_decision(data),
+        "mergeable": "",
+        "draft": bool(data.get("draft")),
+    }
+
+
+def find_pull_request(workspace_root: Path, owner: str, slug: str, branch: str) -> dict | None:
+    """Open PR whose source branch is ``branch``; None when there is none."""
+    query = f"source.branch.name = {_quote(branch)} AND state = \"OPEN\""
+    data = _request("GET", f"{_repo_path(owner, slug)}/pullrequests",
+                    params={"q": query, "fields": PR_FIELDS, "pagelen": 5}) or {}
+    values = data.get("values") or []
+    return _normalize_pr(values[0]) if values else None
+
+
+def get_pull_request_by_number(workspace_root: Path, owner: str, slug: str, pr_number: int) -> dict | None:
+    try:
+        data = _request("GET", f"{_repo_path(owner, slug)}/pullrequests/{pr_number}")
+    except BitbucketApiError as e:
+        if e.status == 404:
+            return None
+        raise
+    return _normalize_pr(data) if data else None
+
+
+def list_open_prs(
+    workspace_root: Path, owner: str, slug: str, author: str | None = None, limit: int = 50,
+) -> list[dict]:
+    """Open PRs, optionally by author. ``@me`` resolves to the authenticated
+    user; any other value is taken as a user uuid."""
+    query = 'state = "OPEN"'
+    if author:
+        uuid = current_user_uuid() if author == "@me" else author
+        query += f" AND author.uuid = {_quote(uuid)}"
+    values = _paginate(f"{_repo_path(owner, slug)}/pullrequests",
+                       params={"q": query, "fields": PR_FIELDS, "pagelen": min(limit, 50)})
+    return [_normalize_pr(v) for v in values[:limit]]
