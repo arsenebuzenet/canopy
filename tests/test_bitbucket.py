@@ -311,3 +311,14 @@ def test_list_open_prs_no_author(api):
 def test_list_open_prs_respects_limit(api):
     api.routes[("GET", f"{REPO}/pullrequests")] = {"values": [_pr(state="OPEN", id=i) for i in range(5)]}
     assert len(bb.list_open_prs(Path("."), WS, SLUG, limit=2)) == 2
+
+
+def test_list_open_prs_stops_paging_once_limit_reached(api):
+    def page(params, body):
+        n = int((params or {}).get("page", "1"))
+        return {"values": [_pr(state="OPEN", id=n)],
+                "next": f"https://api.bitbucket.org/2.0/x?pagelen=1&page={n + 1}"}
+    api.routes[("GET", f"{REPO}/pullrequests")] = page
+    prs = bb.list_open_prs(Path("."), WS, SLUG, limit=2)
+    assert [p["number"] for p in prs] == [1, 2]
+    assert len([c for c in api.calls if c[1] == f"{REPO}/pullrequests"]) == 2

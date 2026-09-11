@@ -157,15 +157,18 @@ def _request(
     return json.loads(raw.decode("utf-8"))
 
 
-def _paginate(path: str, params: dict | None = None) -> list[dict]:
-    """Collect ``values`` across every page. Follows ``next`` by re-issuing
-    the same path with the query parameters the ``next`` URL carries."""
+def _paginate(path: str, params: dict | None = None, *, limit: int | None = None) -> list[dict]:
+    """Collect ``values`` across every page, stopping early once ``limit`` is met.
+    Follows ``next`` by re-issuing the same path with the query parameters the
+    ``next`` URL carries."""
     query = dict(params or {})
     query.setdefault("pagelen", 100)
     out: list[dict] = []
     while True:
         data = _request("GET", path, params=query) or {}
         out.extend(data.get("values") or [])
+        if limit is not None and len(out) >= limit:
+            return out[:limit]
         nxt = data.get("next")
         if not nxt:
             return out
@@ -266,5 +269,6 @@ def list_open_prs(
         uuid = current_user_uuid() if author == "@me" else author
         query += f" AND author.uuid = {_quote(uuid)}"
     values = _paginate(f"{_repo_path(owner, slug)}/pullrequests",
-                       params={"q": query, "fields": PR_FIELDS, "pagelen": min(limit, 50)})
-    return [_normalize_pr(v) for v in values[:limit]]
+                       params={"q": query, "fields": PR_FIELDS, "pagelen": min(limit, 50)},
+                       limit=limit)
+    return [_normalize_pr(v) for v in values]
