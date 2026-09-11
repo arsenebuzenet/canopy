@@ -22,9 +22,10 @@ from ..mcp.client import (
     call_tool,
     McpClientError,
 )
+from .platforms import PlatformNotConfiguredError, build_comments_from_threads, parse_remote
 
 
-class GitHubNotConfiguredError(Exception):
+class GitHubNotConfiguredError(PlatformNotConfiguredError):
     """Neither GitHub MCP nor authenticated gh CLI is available.
 
     Carries the same structured payload that ``github_unavailable_blocker()``
@@ -33,8 +34,7 @@ class GitHubNotConfiguredError(Exception):
     """
 
     def __init__(self, message: str = "", *, payload: dict | None = None):
-        super().__init__(message or (payload or {}).get("what", "GitHub not configured"))
-        self.payload = payload or {}
+        super().__init__(message or (payload or {}).get("what", "GitHub not configured"), payload=payload)
 
 
 class PullRequestNotFoundError(Exception):
@@ -178,24 +178,14 @@ def _parse_mcp_result(result: Any) -> Any:
 
 
 def _extract_owner_repo(remote_url: str) -> tuple[str, str] | None:
-    """Extract owner/repo from a git remote URL.
+    """Owner/repo of a GitHub remote URL; ``None`` for any other host.
 
-    Handles:
-        git@github.com:owner/repo.git
-        https://github.com/owner/repo.git
-        https://github.com/owner/repo
+    Kept for external importers — canopy code uses ``platforms.parse_remote``.
     """
-    # SSH format
-    m = re.match(r"git@github\.com:([^/]+)/([^/.]+?)(?:\.git)?$", remote_url)
-    if m:
-        return m.group(1), m.group(2)
-
-    # HTTPS format
-    m = re.match(r"https?://github\.com/([^/]+)/([^/.]+?)(?:\.git)?$", remote_url)
-    if m:
-        return m.group(1), m.group(2)
-
-    return None
+    ref = parse_remote(remote_url)
+    if ref is None or ref.platform != "github":
+        return None
+    return ref.owner, ref.slug
 
 
 def find_pull_request(
@@ -828,34 +818,7 @@ def reply_to_thread(workspace_root: Path, thread_id: str, body: str) -> dict:
 
 
 def _build_comments_from_threads(threads: list[dict]) -> tuple[list[dict], int]:
-    """Build a normalized comment list from list_review_threads output.
-
-    Threads where is_resolved is True contribute to resolved_count and their
-    comments are excluded (matching the existing _normalize_comments behavior).
-    Each comment dict carries thread_id plus the standard normalized fields.
-    """
-    comments: list[dict] = []
-    resolved_count = 0
-    for t in threads:
-        if t["is_resolved"]:
-            resolved_count += 1
-            continue
-        for c in t["comments"]:
-            comments.append({
-                "id": c["comment_id"],
-                "path": c["path"] or "",
-                "line": c["line"] or 0,
-                "body": c["body"] or "",
-                "author": c["author"],
-                "author_type": c.get("author_type", ""),
-                "state": "",
-                "created_at": c["created_at"] or "",
-                "url": c["url"] or "",
-                "in_reply_to_id": None,
-                "commit_id": "",
-                "thread_id": t["thread_id"],
-            })
-    return comments, resolved_count
+    return build_comments_from_threads(threads)
 
 
 def get_review_comments(
