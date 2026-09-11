@@ -12,9 +12,11 @@ from pathlib import Path
 
 import pytest
 
+from canopy.integrations.platforms import RemoteRef
+from canopy.integrations.review import ReviewApiError
 from canopy.management.ship import (
     _ahead_count, _classify_existing_pr, _format_body_initial,
-    _format_body_with_siblings, _format_title, _position,
+    _format_body_with_siblings, _format_title, _position, _ship_one,
 )
 from canopy.workspace.config import load_config
 from canopy.workspace.workspace import Workspace
@@ -128,3 +130,31 @@ def test_classify_existing_pr_merged():
 def test_ahead_count_handles_missing_branch(tmp_path):
     # Empty dir → git command fails → 0 ahead.
     assert _ahead_count(tmp_path, "no-such", "main") == 0
+
+
+def test_ship_one_reports_platform_api_error_as_failed(
+    workspace_with_features_json, tmp_path, monkeypatch,
+):
+    """A 5xx from the review platform fails one repo, it doesn't abort the run."""
+    monkeypatch.setattr("canopy.git.repo.branch_exists", lambda *a, **kw: True)
+    monkeypatch.setattr("canopy.management.ship._ahead_count", lambda *a, **kw: 1)
+    monkeypatch.setattr(
+        "canopy.management.ship.push_impl",
+        lambda *a, **kw: {"results": {"repo-a": {"status": "pushed"}}},
+    )
+    monkeypatch.setattr(
+        "canopy.management.ship._resolve_remote",
+        lambda *a, **kw: RemoteRef("bitbucket", "ws", "repo-a"),
+    )
+
+    def boom(*a, **kw):
+        raise ReviewApiError(500, "boom")
+
+    monkeypatch.setattr("canopy.integrations.review.find_pull_request", boom)
+
+    result = _ship_one(
+        workspace_with_features_json, "auth-flow", "repo-a", "auth-flow", tmp_path,
+        draft=False, reviewers=None, dry_run=False, base_override=None,
+    )
+    assert result["status"] == "failed"
+    assert "api error" in result["reason"]

@@ -21,7 +21,10 @@ from pathlib import Path
 from typing import Any
 
 from .. import compat
-from .platforms import PlatformNotConfiguredError, build_comments_from_threads, format_bitbucket_thread_id
+from .platforms import (
+    PlatformNotConfiguredError, ReviewApiError, build_comments_from_threads,
+    format_bitbucket_thread_id,
+)
 
 API_ROOT = "https://api.bitbucket.org/2.0"
 _TOKEN_URL = "https://id.atlassian.com/manage-profile/security/api-tokens"
@@ -34,11 +37,11 @@ class BitbucketNotConfiguredError(PlatformNotConfiguredError):
         super().__init__(message or (payload or {}).get("what", "Bitbucket not configured"), payload=payload)
 
 
-class BitbucketApiError(Exception):
+class BitbucketApiError(ReviewApiError):
     """Non-auth HTTP failure. ``status`` is 0 for network-level errors."""
 
     def __init__(self, status: int, body: str):
-        super().__init__(f"bitbucket api {status}: {body[:200]}")
+        Exception.__init__(self, f"bitbucket api {status}: {body[:200]}")
         self.status = status
         self.body = body
 
@@ -172,7 +175,11 @@ def _paginate(path: str, params: dict | None = None, *, limit: int | None = None
         nxt = data.get("next")
         if not nxt:
             return out
-        query = dict(urllib.parse.parse_qsl(urllib.parse.urlparse(nxt).query))
+        nxt_query = dict(urllib.parse.parse_qsl(urllib.parse.urlparse(nxt).query))
+        if nxt_query == {k: str(v) for k, v in query.items()}:
+            # A ``next`` pointing at the query we just sent would spin forever.
+            return out
+        query = nxt_query
 
 
 _USER_UUID: str | None = None
@@ -241,12 +248,21 @@ def _normalize_pr(data: dict) -> dict:
 
 
 def find_pull_request(workspace_root: Path, owner: str, slug: str, branch: str) -> dict | None:
-    """Open PR whose source branch is ``branch``; None when there is none."""
+    """Open PR whose source branch is ``branch``; None when there is none.
+
+    Re-fetches the PR by id when ``PR_FIELDS`` didn't take effect on the list
+    payload, so ``review_decision`` never silently degrades to ``""``.
+    """
     query = f"source.branch.name = {_quote(branch)} AND state = \"OPEN\""
     data = _request("GET", f"{_repo_path(owner, slug)}/pullrequests",
                     params={"q": query, "fields": PR_FIELDS, "pagelen": 5}) or {}
     values = data.get("values") or []
-    return _normalize_pr(values[0]) if values else None
+    if not values:
+        return None
+    found = values[0]
+    if "participants" not in found:
+        found = _request("GET", f"{_repo_path(owner, slug)}/pullrequests/{found['id']}") or found
+    return _normalize_pr(found)
 
 
 def get_pull_request_by_number(workspace_root: Path, owner: str, slug: str, pr_number: int) -> dict | None:
@@ -337,7 +353,15 @@ def create_pr(
 
 
 def update_pr_body(workspace_root: Path, owner: str, slug: str, pr_number: int, body: str) -> None:
-    _request("PUT", f"{_repo_path(owner, slug)}/pullrequests/{pr_number}", body={"description": body})
+    # Bitbucket's PUT is a replace, not a merge: omitting ``reviewers`` clears
+    # the reviewer list, and some tenants reject a PUT without ``title``. Read
+    # both back and send them through unchanged.
+    pr = _request("GET", f"{_repo_path(owner, slug)}/pullrequests/{pr_number}") or {}
+    _request("PUT", f"{_repo_path(owner, slug)}/pullrequests/{pr_number}", body={
+        "title": pr.get("title") or "",
+        "description": body,
+        "reviewers": [{"uuid": r["uuid"]} for r in (pr.get("reviewers") or []) if r.get("uuid")],
+    })
 
 
 # ── commit statuses (CI) ─────────────────────────────────────────────────
@@ -346,7 +370,9 @@ def get_pr_checks(workspace_root: Path, owner: str, slug: str, pr_number: int) -
     """Roll the PR head commit's statuses up to the github-shaped summary.
 
     Best-effort like the GitHub path: any failure returns ``no_checks``
-    rather than raising, so CI never bricks ``feature_state``.
+    rather than raising, so CI never bricks ``feature_state`` — credential
+    failures included, so a missing token reads here as "no checks", not as
+    a blocker.
     """
     try:
         pr = _request("GET", f"{_repo_path(owner, slug)}/pullrequests/{pr_number}") or {}

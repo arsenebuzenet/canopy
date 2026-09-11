@@ -185,6 +185,20 @@ def test_paginate_follows_next(api):
     assert api.calls[1][2]["page"] == "2"
 
 
+def test_paginate_stops_when_next_repeats_the_same_query(api):
+    api.routes[("GET", "/x")] = lambda params, body: {
+        "values": [{"id": 1}], "next": "https://api.bitbucket.org/2.0/x?pagelen=100"}
+    assert bb._paginate("/x") == [{"id": 1}]
+    assert len(api.calls) == 1
+
+
+def test_paginate_stops_when_next_has_no_query(api):
+    api.routes[("GET", "/x")] = lambda params, body: {
+        "values": [{"id": 1}], "next": "https://api.bitbucket.org/2.0/x"}
+    assert bb._paginate("/x") == [{"id": 1}, {"id": 1}]
+    assert len(api.calls) == 2
+
+
 def test_current_user_uuid_is_cached(api):
     api.routes[("GET", "/user")] = {"uuid": "{u-1}", "display_name": "Me"}
     assert bb.current_user_uuid() == "{u-1}"
@@ -283,6 +297,25 @@ def test_find_pull_request_none_when_empty(api):
     assert bb.find_pull_request(Path("."), WS, SLUG, "nope") is None
 
 
+def test_find_pull_request_refetches_when_list_omits_participants(api):
+    slim = {k: v for k, v in _pr(state="OPEN").items() if k not in ("participants", "reviewers")}
+    api.routes[("GET", f"{REPO}/pullrequests")] = {"values": [slim]}
+    api.routes[("GET", f"{REPO}/pullrequests/26")] = _pr(
+        state="OPEN", reviewers=[{"uuid": "{r}"}],
+        participants=[{"user": {"uuid": "{a}"}, "role": "REVIEWER",
+                       "approved": True, "state": "approved"}],
+    )
+    pr = bb.find_pull_request(Path("."), WS, SLUG, "feature/#11205-retour-test")
+    assert pr["review_decision"] == "APPROVED"
+    assert [c[1] for c in api.calls] == [f"{REPO}/pullrequests", f"{REPO}/pullrequests/26"]
+
+
+def test_find_pull_request_trusts_a_list_payload_that_has_participants(api):
+    api.routes[("GET", f"{REPO}/pullrequests")] = {"values": [_pr(state="OPEN")]}
+    assert bb.find_pull_request(Path("."), WS, SLUG, "feature/#11205-retour-test")["number"] == 26
+    assert [c[1] for c in api.calls] == [f"{REPO}/pullrequests"]
+
+
 def test_get_pull_request_by_number(api):
     api.routes[("GET", f"{REPO}/pullrequests/26")] = PR_26
     pr = bb.get_pull_request_by_number(Path("."), WS, SLUG, 26)
@@ -376,9 +409,15 @@ def test_resolve_reviewers_ambiguous_name_raises(api):
 
 
 def test_update_pr_body_puts_description(api):
+    api.routes[("GET", f"{REPO}/pullrequests/26")] = _pr(title="t", reviewers=[{"uuid": "{alice}"}])
     api.routes[("PUT", f"{REPO}/pullrequests/26")] = lambda params, body: _pr(description=body["description"])
     bb.update_pr_body(Path("."), WS, SLUG, 26, "new body")
-    assert api.calls[0][3] == {"description": "new body"}
+    put = [c for c in api.calls if c[0] == "PUT"][0]
+    assert put[3] == {"title": "t", "description": "new body", "reviewers": [{"uuid": "{alice}"}]}
+
+
+def test_quote_escapes_quotes_and_backslashes():
+    assert bb._quote('a"b\\c') == '"a\\"b\\\\c"'
 
 
 # ── checks ───────────────────────────────────────────────────────────────

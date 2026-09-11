@@ -18,14 +18,14 @@ from . import bitbucket, github
 from .bitbucket import UnknownReviewerError
 from .github import PullRequestNotFoundError
 from .platforms import (
-    BITBUCKET, GITHUB, PlatformNotConfiguredError, RemoteRef, ThreadRef,
+    BITBUCKET, GITHUB, PlatformNotConfiguredError, RemoteRef, ReviewApiError, ThreadRef,
     build_comments_from_threads, format_bitbucket_thread_id, parse_pr_url,
     parse_remote, parse_thread_id,
 )
 
 __all__ = [
     "RemoteRef", "ThreadRef", "PlatformNotConfiguredError", "PullRequestNotFoundError",
-    "UnknownReviewerError", "parse_remote", "parse_pr_url", "parse_thread_id",
+    "ReviewApiError", "UnknownReviewerError", "parse_remote", "parse_pr_url", "parse_thread_id",
     "format_bitbucket_thread_id", "build_comments_from_threads", "platform_label",
     "is_configured", "unavailable_blocker", "find_pull_request",
     "get_pull_request_by_number", "list_open_prs", "create_pr", "update_pr_body",

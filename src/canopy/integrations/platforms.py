@@ -49,6 +49,17 @@ class PlatformNotConfiguredError(Exception):
         self.payload = payload or {}
 
 
+class ReviewApiError(Exception):
+    """A review-platform call failed for a reason other than credentials
+    (HTTP 4xx/5xx, network). Carries ``status`` (0 for network errors) and
+    the response ``body``."""
+
+    def __init__(self, status: int, body: str):
+        super().__init__(f"review platform api {status}: {body[:200]}")
+        self.status = status
+        self.body = body
+
+
 _REMOTE_PATTERNS = (
     (GITHUB, re.compile(r"^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?/?$", re.IGNORECASE)),
     (GITHUB, re.compile(r"^https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$", re.IGNORECASE)),

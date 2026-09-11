@@ -16,6 +16,9 @@ Versions follow semver. Pre-1.0 — minor bumps may add features or break behavi
   (`bitbucket_not_configured` blocker otherwise).
 - Bitbucket review threads are addressed as `bb:<workspace>/<repo>#<pr>/<comment>`
   (GitHub keeps `PRRT_…`). `resolve` / `reply` accept both.
+- Blocker code rename: a PR URL matching no workspace repo now reports
+  `unknown_remote_repo` (was `unknown_github_repo`), and `unparseable_remote`'s
+  message names both GitHub and Bitbucket.
 - Internal: `integrations/review.py` façade + `platforms.RemoteRef`;
   `aliases._resolve_owner_slug` replaced by `_resolve_remote`; `PRTarget`
   gains `platform`.

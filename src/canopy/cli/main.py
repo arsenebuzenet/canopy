@@ -1414,7 +1414,7 @@ def cmd_review(args: argparse.Namespace) -> None:
     """
     from .ui import console, spinner, separator, print_success, print_warning, print_error, SYM_CHECK, SYM_CROSS, SYM_LINK
     from ..integrations.platforms import PlatformNotConfiguredError
-    from ..integrations.github import PullRequestNotFoundError
+    from ..integrations.review import PullRequestNotFoundError
 
     workspace = _load_workspace()
     from ..management.review_ops import (
@@ -4101,7 +4101,7 @@ def main() -> None:
 
     reply_p = subparsers.add_parser(
         "reply",
-        help="Post a reply to a GH review thread",
+        help="Post a reply to a PR review thread",
     )
     reply_p.add_argument(
         "thread_id",
@@ -4120,7 +4120,7 @@ def main() -> None:
 
     resolve_p = subparsers.add_parser(
         "resolve",
-        help="Resolve a GitHub PR review thread and record it locally",
+        help="Resolve a PR review thread and record it locally",
     )
     resolve_p.add_argument(
         "thread_id",

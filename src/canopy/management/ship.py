@@ -158,6 +158,12 @@ def _ship_one(
             "reason": f"{review.platform_label(remote.platform)} not configured: "
                       f"{err.payload.get('what', '')}",
         }
+    except review.ReviewApiError as err:
+        # One repo's platform hiccup fails that repo, never the whole run.
+        return {
+            "status": "failed",
+            "reason": f"{review.platform_label(remote.platform)} api error: {err}",
+        }
 
     if existing:
         return _classify_existing_pr(repo_path, branch, existing)
@@ -173,6 +179,8 @@ def _ship_one(
         )
     except review.PlatformNotConfiguredError as err:
         return {"status": "failed", "reason": f"create failed: {err.payload.get('what', '')}"}
+    except review.ReviewApiError as err:
+        return {"status": "failed", "reason": f"create failed: {err}"}
     except review.UnknownReviewerError as err:
         return {"status": "failed", "reason": f"unknown reviewers: {', '.join(err.names)}"}
     return {
@@ -218,7 +226,7 @@ def _dry_run_one(
     try:
         remote = _resolve_remote(workspace, repo_name)
         existing = review.find_pull_request(workspace.config.root, remote, branch)
-    except (BlockerError, review.PlatformNotConfiguredError):
+    except (BlockerError, review.PlatformNotConfiguredError, review.ReviewApiError):
         existing = None
     if existing:
         return {
@@ -271,6 +279,9 @@ def _refresh_cross_repo_links(
             updated_any = True
         except review.PlatformNotConfiguredError:
             break
+        except review.ReviewApiError:
+            # Cosmetic pass — a failed body refresh must not abort the run.
+            continue
     return updated_any
 
 

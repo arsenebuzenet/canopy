@@ -61,7 +61,11 @@ def review_status(workspace: Workspace, name: str) -> dict:
     # Refuse up front when no configured transport exists for any repo that
     # has a recognisable remote — same behaviour as before, now per platform.
     known = [r for r in remotes.values() if r is not None]
-    if known and not any(review.is_configured(workspace.config.root, r) for r in known):
+    # One probe per platform, not per repo: is_configured spawns `gh auth
+    # status` for GitHub, and a ten-repo workspace would spawn it ten times.
+    platforms = {r.platform for r in known}
+    representatives = [next(r for r in known if r.platform == p) for p in sorted(platforms)]
+    if known and not any(review.is_configured(workspace.config.root, r) for r in representatives):
         raise review.PlatformNotConfiguredError(payload=review.unavailable_blocker(known[0]))
 
     results: dict[str, dict] = {}
