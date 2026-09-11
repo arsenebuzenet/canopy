@@ -398,3 +398,90 @@ def _rollup_statuses(raw: list[dict], *, details_url: str) -> dict:
         "required_pending": pending_names,
         "details_url": details_url,
     }
+
+
+# ── review threads ───────────────────────────────────────────────────────
+#
+# Bitbucket has flat comments with an optional ``parent``; a thread is a
+# root comment plus every comment whose parent chain leads to it.
+
+def _author_type(user: dict) -> str:
+    # Bitbucket types real people as "user"; apps/bots carry another type
+    # (e.g. "app_user"). Downstream bot detection keys on "Bot".
+    return "User" if (user.get("type") or "user") == "user" else "Bot"
+
+
+def _normalize_comment(c: dict) -> dict:
+    inline = c.get("inline") or {}
+    user = c.get("user") or {}
+    return {
+        "comment_id": c.get("id"),
+        "path": inline.get("path") or "",
+        "line": inline.get("to") or inline.get("from") or 0,
+        "body": (c.get("content") or {}).get("raw") or "",
+        "created_at": c.get("created_on") or "",
+        "url": ((c.get("links") or {}).get("html") or {}).get("href", ""),
+        "author": user.get("display_name") or user.get("nickname") or "",
+        "author_type": _author_type(user),
+    }
+
+
+def _is_resolved(c: dict) -> bool:
+    res = c.get("resolution") or {}
+    return bool(res.get("user") or res.get("created_on"))
+
+
+def list_review_threads(workspace_root: Path, owner: str, slug: str, pr_number: int) -> list[dict]:
+    raw = _paginate(f"{_repo_path(owner, slug)}/pullrequests/{pr_number}/comments")
+    alive = [c for c in raw if not c.get("deleted")]
+    parent_of = {c["id"]: (c.get("parent") or {}).get("id") for c in alive}
+
+    def root_of(cid: int) -> int:
+        seen = set()
+        while parent_of.get(cid) is not None and cid not in seen:
+            seen.add(cid)
+            cid = parent_of[cid]
+        return cid
+
+    threads: dict[int, dict] = {}
+    for c in alive:                      # API order is creation order → root first
+        root_id = root_of(c["id"])
+        if root_id not in threads:
+            root = c if c["id"] == root_id else next((x for x in alive if x["id"] == root_id), c)
+            res = root.get("resolution") or {}
+            threads[root_id] = {
+                "thread_id": format_bitbucket_thread_id(owner, slug, pr_number, root_id),
+                "is_resolved": _is_resolved(root),
+                "resolved_at": res.get("created_on") or None,
+                "comments": [],
+            }
+        threads[root_id]["comments"].append(_normalize_comment(c))
+    return list(threads.values())
+
+
+def get_review_comments(workspace_root: Path, owner: str, slug: str, pr_number: int) -> tuple[list[dict], int]:
+    from .platforms import build_comments_from_threads
+    return build_comments_from_threads(list_review_threads(workspace_root, owner, slug, pr_number))
+
+
+def resolve_thread(workspace_root: Path, owner: str, slug: str, pr_number: int, comment_id: int) -> dict:
+    _request("POST", f"{_repo_path(owner, slug)}/pullrequests/{pr_number}/comments/{comment_id}/resolve")
+    return {"thread_id": format_bitbucket_thread_id(owner, slug, pr_number, comment_id), "is_resolved": True}
+
+
+def unresolve_thread(workspace_root: Path, owner: str, slug: str, pr_number: int, comment_id: int) -> dict:
+    _request("DELETE", f"{_repo_path(owner, slug)}/pullrequests/{pr_number}/comments/{comment_id}/resolve")
+    return {"thread_id": format_bitbucket_thread_id(owner, slug, pr_number, comment_id), "is_resolved": False}
+
+
+def reply_to_thread(
+    workspace_root: Path, owner: str, slug: str, pr_number: int, comment_id: int, body: str,
+) -> dict:
+    data = _request(
+        "POST", f"{_repo_path(owner, slug)}/pullrequests/{pr_number}/comments",
+        body={"content": {"raw": body}, "parent": {"id": comment_id}},
+    ) or {}
+    return {
+        "comment_id": data.get("id"),
+        "url": ((data.get("links") or {}).get("html") or {}).get("href", ""),
+    }

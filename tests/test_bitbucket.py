@@ -26,9 +26,10 @@ class FakeApi:
 
     def __call__(self, method, path, *, params=None, body=None, timeout=15.0):
         self.calls.append((method, path, params, body))
-        route = self.routes.get((method, path))
-        if route is None:
+        key = (method, path)
+        if key not in self.routes:                      # unregistered → 404
             raise bb.BitbucketApiError(404, json.dumps({"error": {"message": "not found"}}))
+        route = self.routes[key]
         return route(params, body) if callable(route) else route
 
 
@@ -417,3 +418,106 @@ def test_get_pr_checks_all_passing(api):
     api.routes[("GET", f"{REPO}/commit/3df742df3d63/statuses")] = {"values": [_status("build", "SUCCESSFUL")]}
     rollup, _ = bb.get_pr_checks(Path("."), WS, SLUG, 26)
     assert rollup["status"] == "passing" and rollup["passed"] == 1
+
+
+# ── review threads ───────────────────────────────────────────────────────
+
+def _comment(cid, body, *, parent=None, path="src/a.py", to=12, resolved=False,
+             user_type="user", name="Arsene Buzenet", deleted=False, created="2026-09-10T11:44:01+00:00"):
+    c = {
+        "id": cid,
+        "content": {"raw": body},
+        "user": {"uuid": "{u}", "display_name": name, "nickname": name, "type": user_type},
+        "created_on": created,
+        "updated_on": created,
+        "deleted": deleted,
+        "links": {"html": {"href": f"https://bitbucket.org/{WS}/{SLUG}/pull-requests/26/_/diff#comment-{cid}"}},
+    }
+    if parent is not None:
+        c["parent"] = {"id": parent}
+    if path is not None:
+        c["inline"] = {"path": path, "from": None, "to": to}
+    if resolved:
+        c["resolution"] = {"user": {"uuid": "{u}"}, "created_on": "2026-09-10T12:00:00+00:00"}
+    return c
+
+
+COMMENTS = {"values": [
+    _comment(100, "root A"),
+    _comment(101, "reply A1", parent=100),
+    _comment(102, "reply A2", parent=101),                       # nested reply → still thread 100
+    _comment(200, "root B resolved", resolved=True, to=30),
+    _comment(300, "general remark", path=None),                  # activity-level, no inline
+    _comment(400, "bot nit", user_type="app_user", name="Atlassian Intelligence"),
+    _comment(500, "deleted one", deleted=True),
+]}
+
+
+def test_list_review_threads_groups_by_root(api):
+    api.routes[("GET", f"{REPO}/pullrequests/26/comments")] = COMMENTS
+    threads = bb.list_review_threads(Path("."), WS, SLUG, 26)
+    by_id = {t["thread_id"]: t for t in threads}
+    assert set(by_id) == {
+        "bb:filoventeam/report.server#26/100", "bb:filoventeam/report.server#26/200",
+        "bb:filoventeam/report.server#26/300", "bb:filoventeam/report.server#26/400",
+    }
+    a = by_id["bb:filoventeam/report.server#26/100"]
+    assert [c["comment_id"] for c in a["comments"]] == [100, 101, 102]
+    assert a["is_resolved"] is False and a["resolved_at"] is None
+    assert a["comments"][0] == {
+        "comment_id": 100, "path": "src/a.py", "line": 12, "body": "root A",
+        "created_at": "2026-09-10T11:44:01+00:00",
+        "url": f"https://bitbucket.org/{WS}/{SLUG}/pull-requests/26/_/diff#comment-100",
+        "author": "Arsene Buzenet", "author_type": "User",
+    }
+
+
+def test_list_review_threads_resolution_and_bot(api):
+    api.routes[("GET", f"{REPO}/pullrequests/26/comments")] = COMMENTS
+    by_id = {t["thread_id"]: t for t in bb.list_review_threads(Path("."), WS, SLUG, 26)}
+    b = by_id["bb:filoventeam/report.server#26/200"]
+    assert b["is_resolved"] is True and b["resolved_at"] == "2026-09-10T12:00:00+00:00"
+    general = by_id["bb:filoventeam/report.server#26/300"]["comments"][0]
+    assert general["path"] == "" and general["line"] == 0
+    bot = by_id["bb:filoventeam/report.server#26/400"]["comments"][0]
+    assert bot["author_type"] == "Bot"
+
+
+def test_list_review_threads_uses_from_line_for_removed_side(api):
+    c = _comment(700, "on removed line", to=None)
+    c["inline"]["from"] = 8
+    api.routes[("GET", f"{REPO}/pullrequests/26/comments")] = {"values": [c]}
+    threads = bb.list_review_threads(Path("."), WS, SLUG, 26)
+    assert threads[0]["comments"][0]["line"] == 8
+
+
+def test_get_review_comments_drops_resolved(api):
+    api.routes[("GET", f"{REPO}/pullrequests/26/comments")] = COMMENTS
+    comments, resolved = bb.get_review_comments(Path("."), WS, SLUG, 26)
+    assert resolved == 1
+    ids = [c["id"] for c in comments]
+    assert 200 not in ids and 500 not in ids and 100 in ids
+    first = next(c for c in comments if c["id"] == 100)
+    assert first["thread_id"] == "bb:filoventeam/report.server#26/100"
+    assert first["commit_id"] == "" and first["in_reply_to_id"] is None
+
+
+def test_resolve_thread_posts_resolve(api):
+    api.routes[("POST", f"{REPO}/pullrequests/26/comments/100/resolve")] = {"id": 100, "resolution": {"user": {}}}
+    out = bb.resolve_thread(Path("."), WS, SLUG, 26, 100)
+    assert out == {"thread_id": "bb:filoventeam/report.server#26/100", "is_resolved": True}
+
+
+def test_unresolve_thread_deletes_resolve(api):
+    api.routes[("DELETE", f"{REPO}/pullrequests/26/comments/100/resolve")] = None
+    out = bb.unresolve_thread(Path("."), WS, SLUG, 26, 100)
+    assert out == {"thread_id": "bb:filoventeam/report.server#26/100", "is_resolved": False}
+
+
+def test_reply_to_thread_posts_with_parent(api):
+    api.routes[("POST", f"{REPO}/pullrequests/26/comments")] = lambda params, body: _comment(
+        900, body["content"]["raw"], parent=body["parent"]["id"])
+    out = bb.reply_to_thread(Path("."), WS, SLUG, 26, 100, "Fixed in abc123.")
+    assert out == {"comment_id": 900,
+                   "url": f"https://bitbucket.org/{WS}/{SLUG}/pull-requests/26/_/diff#comment-900"}
+    assert api.calls[0][3] == {"content": {"raw": "Fixed in abc123."}, "parent": {"id": 100}}
