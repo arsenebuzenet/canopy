@@ -411,7 +411,11 @@ The following could adopt the same provider-injection shape if implementation dr
 
 - **Bot-author detection** — M3 (bot-tracking, shipped) introduced `review_bots` augment in canopy.toml for per-team configuration. `author_type == "Bot"` checks are already provider-aware via GitHub Issues. Future: could extend to a full `BotAuthorDetector` provider with custom rules (regex, allowlist, etc.), but `review_bots` meets current needs.
 - **CI providers** (GitHub Actions, CircleCI, Buildkite) — deferred to the [ci-status plan](../plans/ci-status.md). Same shape would apply: a `CIProvider` protocol with `get_check_runs(pr)` etc. Don't build until that plan exists.
-- **Code-review platforms** (GitHub, GitLab, Bitbucket) — `gh` fallback works today via [`integrations/github.py`](../../src/canopy/integrations/github.py) (shared infra behind both `actions/pr_map.py` and `management/reads.py`). A `ReviewPlatformProvider` could unify, but the existing gh-or-MCP pattern handles current needs.
+- **Code-review platforms** (GitHub, Bitbucket Cloud) — implemented without the
+  provider registry: [`integrations/review.py`](../../src/canopy/integrations/review.py)
+  dispatches on the repo's remote host (`platforms.parse_remote`) to
+  `integrations/github.py` or `integrations/bitbucket.py`. GitLab / Bitbucket
+  Data Center would add a backend module and a `parse_remote` pattern.
 - **IDE workspace formats** (VS Code `.code-workspace`, JetBrains `.idea/`, Cursor) — [worktree-bootstrap plan](../plans/worktree-bootstrap.md) defers this. Could become an `IDEWorkspaceWriter` provider.
 - **Pre-commit frameworks** (pre-commit, husky, lefthook) — auto-detection in [`integrations/precommit.py`](../../src/canopy/integrations/precommit.py) works today. A `PreflightProvider` would unify but isn't load-bearing.
 

@@ -4,6 +4,22 @@ Tracks the Python side (CLI + MCP server). The VSCode extension has its own [vsc
 
 Versions follow semver. Pre-1.0 — minor bumps may add features or break behavior; the README is the source-of-truth contract.
 
+## 4.0.0-rc5 — 2026-09-11 (Bitbucket Cloud)
+
+- Repos hosted on `bitbucket.org` are first-class review-platform targets:
+  `ship`, `triage`, `context --remote`, `feature-state`, `pr`, `comments`,
+  `pr-checks`, `resume`, `resolve`, `reply` and `draft-replies` work against
+  Bitbucket Cloud via its REST API (`integrations/bitbucket.py`). The
+  platform is detected from each repo's `origin` remote; a workspace may mix
+  GitHub and Bitbucket repos. Credentials come from `BITBUCKET_ACCESS_TOKEN`,
+  `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN`, or `~/.canopy/bitbucket.json`
+  (`bitbucket_not_configured` blocker otherwise).
+- Bitbucket review threads are addressed as `bb:<workspace>/<repo>#<pr>/<comment>`
+  (GitHub keeps `PRRT_…`). `resolve` / `reply` accept both.
+- Internal: `integrations/review.py` façade + `platforms.RemoteRef`;
+  `aliases._resolve_owner_slug` replaced by `_resolve_remote`; `PRTarget`
+  gains `platform`.
+
 ## 4.0.0-rc4 — 2026-09-07 (Workspace-level env files)
 
 - `[workspace] env_files` in canopy.toml lists files that live at the workspace

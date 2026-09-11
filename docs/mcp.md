@@ -157,6 +157,18 @@ github_not_configured
 
 (GitHub reads themselves are now management-side / CLI `--json`; the fallback infra is shared.)
 
+### Bitbucket Cloud
+
+Repos whose remote is on `bitbucket.org` use the Bitbucket Cloud REST API
+directly (`integrations/bitbucket.py`) — no MCP server, no CLI. Credentials,
+first match wins:
+
+1. `BITBUCKET_ACCESS_TOKEN` — repository/workspace access token (Bearer).
+2. `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` — Atlassian account API token (Basic).
+3. `~/.canopy/bitbucket.json` — `{"email": "...", "api_token": "..."}` or `{"access_token": "..."}`.
+
+Missing or rejected credentials raise `BlockerError(code='bitbucket_not_configured')`.
+
 ## Skill (using-canopy)
 
 The MCP server makes the 15 tools available; the [`using-canopy`](../src/canopy/agent_setup/skills/using-canopy/SKILL.md) skill teaches the agent *when* to prefer them. Without the skill, agents default to raw `Bash + git + gh` (training data).
@@ -171,5 +183,5 @@ See [agents.md](agents.md) for the full integration story.
 - **Actions return structured errors.** `BlockerError(code, what, expected, actual, fix_actions, details)`. The CLI renders via `cli/render.py`; MCP returns `to_dict()`. Same shape, two consumers.
 - **The MCP server is a thin wrapper.** `canopy.mcp.server` holds no business logic — it lives in `canopy.actions.*`, `canopy.features.*`, `canopy.git.*`. Adding a tool = registering an existing function under `@mcp.tool()`.
 - **Agent-core imports nothing from `canopy.management`.** `actions/`, `features/`, and `agent/` must never import the management surface. This boundary is enforced statically by `tests/test_import_boundary.py` (a source scan that catches lazy/function-local imports too).
-- **Canopy never imports external APIs directly.** Linear, GitHub, etc. all flow through MCP (or the `gh` CLI fallback for GitHub).
+- **Canopy never imports external APIs directly.** Linear, GitHub, etc. all flow through MCP (or the `gh` CLI fallback for GitHub) — the one exception is Bitbucket Cloud, which has no MCP server and talks to its REST API directly from `integrations/bitbucket.py`.
 - **Token storage is opt-in per server.** `oauth: true` enables `~/.canopy/mcp-tokens/`; stdio servers carry credentials in `env`.

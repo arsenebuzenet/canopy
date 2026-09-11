@@ -49,7 +49,7 @@ Organized by **workflow stage** — top to bottom matches a typical day.
 
 ## Read
 
-Read primitives — alias-aware fetches against Linear and GitHub, plus review classification. Use these instead of shelling `gh api` or `gh pr view`.
+Read primitives — alias-aware fetches against Linear, GitHub and Bitbucket Cloud, plus review classification. Use these instead of shelling `gh api` or `gh pr view`.
 
 | Command | What it does |
 |---|---|
@@ -66,6 +66,12 @@ Read primitives — alias-aware fetches against Linear and GitHub, plus review c
 | `canopy historian compact [<feature>] [--keep-sessions N]` | Trim the Sessions section to the most-recent N (default 5). Resolutions log + PR context preserved regardless. v1 is mechanical (no LLM). |
 | `canopy feature diff <name>` | Aggregate diff vs default branch + cross-repo type overlap detection. |
 | `canopy feature changes <name>` | Per-file change summary across the feature lane. |
+
+**Review platform detection.** The platform is read from each repo's `origin`
+remote: `github.com` → GitHub (MCP or `gh` CLI), `bitbucket.org` → Bitbucket
+Cloud (REST, credentials from `BITBUCKET_ACCESS_TOKEN`, or
+`BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN`, or `~/.canopy/bitbucket.json`).
+A workspace may mix both. Bitbucket Data Center is not supported.
 
 ## Focus & slots
 
@@ -89,7 +95,7 @@ Write actions and execution.
 | `canopy sync` | Pull default branch + rebase feature branches across repos. |
 | ⚡ `canopy commit -m <msg> [--feature <f>] [--repo <r,...>] [--paths <p ...>] [--no-hooks] [--amend]` **(agent tool)** | Commit across every repo in the canonical (or named) feature with a single message. Pre-flight refuses with `BlockerError(code='wrong_branch')` if any in-scope repo has drifted; per-repo hook failures don't cancel the others (status: `hooks_failed`). `--paths` filters staging; `--no-hooks` passes `--no-verify`; `--amend` amends HEAD instead of creating new commits. (4.0: commit is commit-only — the pre-4.0 `--address` / `--resolve-thread` bot-comment plumbing was removed; classify and resolve threads with `canopy comments` / `canopy resolve` / `canopy reply` instead.) |
 | ⚡ `canopy push [--feature <f>] [--repo <r,...>] [--set-upstream] [--force-with-lease] [--dry-run]` **(agent tool)** | Push the feature branch in every in-scope repo. Pre-flight raises `BlockerError(code='no_upstream')` if any repo lacks an upstream and `--set-upstream` was not passed; the fix-action carries the same args + `--set-upstream` so an agent retries mechanically. `--force-with-lease` allows safe non-fast-forward pushes. Per-repo statuses: `ok`, `up_to_date`, `rejected`, `failed`. |
-| `canopy ship [--feature <f>] [--repo <r,...>] [--draft] [--reviewers <h,...>] [--base <branch>] [--dry-run]` | Open or update one PR per repo in the canonical (or named) feature, with cross-repo body links. `--draft` opens as drafts (initial open only); `--reviewers` requests review from GitHub handles; `--base` overrides the base branch (default: each repo's `default_branch`); `--dry-run` enumerates without pushing or opening PRs. |
+| `canopy ship [--feature <f>] [--repo <r,...>] [--draft] [--reviewers <h,...>] [--base <branch>] [--dry-run]` | Open or update one PR per repo in the canonical (or named) feature, with cross-repo body links. `--draft` opens as drafts (initial open only); `--reviewers` requests review from GitHub handles; `--base` overrides the base branch (default: each repo's `default_branch`); `--dry-run` enumerates without pushing or opening PRs. Works against GitHub and Bitbucket Cloud remotes; on Bitbucket, --reviewers takes nicknames, display names, or {uuid}s. |
 
 ## Verify
 
@@ -101,8 +107,8 @@ Write actions and execution.
 
 | Command | What it does |
 |---|---|
-| `canopy resolve <thread_id> [--feature <f>]` | Resolve a GitHub PR review thread via GraphQL + record the closure in `.canopy/state/thread_resolutions.json`. `--feature` pins which feature the resolution is attributed to (defaults to the canonical feature). |
-| `canopy reply <thread_id> [--body <text> \| --body-file <path> \| stdin] [--resolve] [--feature <f>]` | Post a reply to a GitHub review thread. Body comes from `--body`, `--body-file`, or stdin (pipe-friendly). `--resolve` closes the thread after posting and logs the closure. |
+| `canopy resolve <thread_id> [--feature <f>]` | Resolve a PR review thread (GitHub node id `PRRT_…` or Bitbucket id `bb:<workspace>/<repo>#<pr>/<comment>`) + record the closure in `.canopy/state/thread_resolutions.json`. `--feature` pins which feature the resolution is attributed to (defaults to the canonical feature). |
+| `canopy reply <thread_id> [--body <text> \| --body-file <path> \| stdin] [--resolve] [--feature <f>]` | Post a reply to a PR review thread (GitHub node id `PRRT_…` or Bitbucket id `bb:<workspace>/<repo>#<pr>/<comment>`). Body comes from `--body`, `--body-file`, or stdin (pipe-friendly). `--resolve` closes the thread after posting and logs the closure. |
 
 ## Resume
 
