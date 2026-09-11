@@ -272,3 +272,66 @@ def list_open_prs(
                        params={"q": query, "fields": PR_FIELDS, "pagelen": min(limit, 50)},
                        limit=limit)
     return [_normalize_pr(v) for v in values]
+
+
+class UnknownReviewerError(Exception):
+    """One or more reviewer names didn't match a workspace member."""
+
+    def __init__(self, names: list[str]):
+        super().__init__(f"unknown reviewers: {', '.join(names)}")
+        self.names = names
+
+
+def resolve_reviewers(owner: str, names: list[str]) -> list[str]:
+    """Map nicknames / display names to uuids via the workspace member list.
+    Values already shaped like ``{uuid}`` pass through untouched."""
+    pending = [n for n in names if not (n.startswith("{") and n.endswith("}"))]
+    by_name: dict[str, str] = {}
+    if pending:
+        for member in _paginate(f"/workspaces/{owner}/members"):
+            user = member.get("user") or {}
+            uuid = user.get("uuid") or ""
+            for key in (user.get("nickname"), user.get("display_name")):
+                if key:
+                    by_name[key.lower()] = uuid
+    out: list[str] = []
+    unknown: list[str] = []
+    for name in names:
+        if name.startswith("{") and name.endswith("}"):
+            out.append(name)
+        elif name.lower() in by_name:
+            out.append(by_name[name.lower()])
+        else:
+            unknown.append(name)
+    if unknown:
+        raise UnknownReviewerError(unknown)
+    return out
+
+
+def create_pr(
+    workspace_root: Path,
+    owner: str,
+    slug: str,
+    *,
+    branch: str,
+    base: str,
+    title: str,
+    body: str,
+    draft: bool = False,
+    reviewers: list[str] | None = None,
+) -> dict:
+    payload: dict[str, Any] = {
+        "title": title,
+        "description": body,
+        "source": {"branch": {"name": branch}},
+        "destination": {"branch": {"name": base}},
+        "draft": draft,
+    }
+    if reviewers:
+        payload["reviewers"] = [{"uuid": u} for u in resolve_reviewers(owner, reviewers)]
+    data = _request("POST", f"{_repo_path(owner, slug)}/pullrequests", body=payload, timeout=30.0)
+    return _normalize_pr(data or {})
+
+
+def update_pr_body(workspace_root: Path, owner: str, slug: str, pr_number: int, body: str) -> None:
+    _request("PUT", f"{_repo_path(owner, slug)}/pullrequests/{pr_number}", body={"description": body})

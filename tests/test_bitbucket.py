@@ -322,3 +322,48 @@ def test_list_open_prs_stops_paging_once_limit_reached(api):
     prs = bb.list_open_prs(Path("."), WS, SLUG, limit=2)
     assert [p["number"] for p in prs] == [1, 2]
     assert len([c for c in api.calls if c[1] == f"{REPO}/pullrequests"]) == 2
+
+
+# ── PR writes ────────────────────────────────────────────────────────────
+
+MEMBERS = {"values": [
+    {"user": {"uuid": "{alice}", "nickname": "alice", "display_name": "Alice Martin"}},
+    {"user": {"uuid": "{bob}", "nickname": "bobby", "display_name": "Bob Dupont"}},
+]}
+
+
+def test_create_pr_posts_expected_body(api):
+    api.routes[("POST", f"{REPO}/pullrequests")] = lambda params, body: _pr(state="OPEN", id=27, title=body["title"])
+    pr = bb.create_pr(Path("."), WS, SLUG, branch="feature/x", base="dev",
+                      title="feat x", body="desc", draft=True)
+    assert pr["number"] == 27 and pr["state"] == "open"
+    _, _, _, body = api.calls[0]
+    assert body == {
+        "title": "feat x",
+        "description": "desc",
+        "source": {"branch": {"name": "feature/x"}},
+        "destination": {"branch": {"name": "dev"}},
+        "draft": True,
+    }
+
+
+def test_create_pr_with_reviewers_resolves_names(api):
+    api.routes[("GET", f"/workspaces/{WS}/members")] = MEMBERS
+    api.routes[("POST", f"{REPO}/pullrequests")] = lambda params, body: _pr(state="OPEN", id=28)
+    bb.create_pr(Path("."), WS, SLUG, branch="b", base="dev", title="t", body="",
+                 reviewers=["alice", "Bob Dupont", "{raw-uuid}"])
+    body = [c for c in api.calls if c[0] == "POST"][0][3]
+    assert body["reviewers"] == [{"uuid": "{alice}"}, {"uuid": "{bob}"}, {"uuid": "{raw-uuid}"}]
+
+
+def test_resolve_reviewers_unknown_raises(api):
+    api.routes[("GET", f"/workspaces/{WS}/members")] = MEMBERS
+    with pytest.raises(bb.UnknownReviewerError) as exc_info:
+        bb.resolve_reviewers(WS, ["alice", "ghost"])
+    assert exc_info.value.names == ["ghost"]
+
+
+def test_update_pr_body_puts_description(api):
+    api.routes[("PUT", f"{REPO}/pullrequests/26")] = lambda params, body: _pr(description=body["description"])
+    bb.update_pr_body(Path("."), WS, SLUG, 26, "new body")
+    assert api.calls[0][3] == {"description": "new body"}
