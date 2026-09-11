@@ -3965,7 +3965,8 @@ def main() -> None:
     ship_p.add_argument("--draft", action="store_true",
                           help="Open PRs as drafts (initial open only)")
     ship_p.add_argument("--reviewers", default=None,
-                          help="Comma-separated GitHub handles to request review from")
+                          help="Comma-separated reviewers: GitHub handles on GitHub; "
+                               "nicknames, display names or {uuid}s on Bitbucket Cloud")
     ship_p.add_argument("--base", default=None,
                           help="Override base branch (default: each repo's default_branch)")
     ship_p.add_argument("--dry-run", action="store_true",
