@@ -1413,7 +1413,8 @@ def cmd_review(args: argparse.Namespace) -> None:
     3. Run pre-commit hooks + stage changes (preflight)
     """
     from .ui import console, spinner, separator, print_success, print_warning, print_error, SYM_CHECK, SYM_CROSS, SYM_LINK
-    from ..integrations.github import GitHubNotConfiguredError, PullRequestNotFoundError
+    from ..integrations.platforms import PlatformNotConfiguredError
+    from ..integrations.review import PullRequestNotFoundError
 
     workspace = _load_workspace()
     from ..management.review_ops import (
@@ -1428,7 +1429,7 @@ def cmd_review(args: argparse.Namespace) -> None:
     try:
         with spinner(f"Checking PRs for {feature}..."):
             status = review_status_op(workspace, feature)
-    except GitHubNotConfiguredError as e:
+    except PlatformNotConfiguredError as e:
         print_error(str(e))
         sys.exit(1)
     except ValueError as e:
@@ -2780,15 +2781,15 @@ def cmd_drift(args: argparse.Namespace) -> None:
 def cmd_pr_checks(args: argparse.Namespace) -> None:
     """Fetch CI check runs for a PR alias (M10)."""
     from ..actions.aliases import resolve_pr_targets
-    from ..integrations import github as gh
+    from ..integrations import review
     from .ui import console
 
     workspace = _load_workspace()
     targets = resolve_pr_targets(workspace, args.alias)
     results = []
     for t in targets:
-        rollup, raw = gh.get_pr_checks(
-            workspace.config.root, t.owner, t.repo_slug, t.pr_number,
+        rollup, raw = review.get_pr_checks(
+            workspace.config.root, t.remote, t.pr_number,
         )
         results.append({
             "repo": t.repo,
@@ -3252,7 +3253,7 @@ def cmd_reply_thread(args: argparse.Namespace) -> None:
 
 
 def cmd_resolve_thread(args: argparse.Namespace) -> None:
-    """Resolve a GitHub PR review thread and record the resolution locally."""
+    """Resolve a PR review thread and record the resolution locally."""
     from ..management.thread_actions import resolve_thread
     from ..actions.errors import ActionError
     from .render import render_blocker
@@ -3964,7 +3965,8 @@ def main() -> None:
     ship_p.add_argument("--draft", action="store_true",
                           help="Open PRs as drafts (initial open only)")
     ship_p.add_argument("--reviewers", default=None,
-                          help="Comma-separated GitHub handles to request review from")
+                          help="Comma-separated reviewers: GitHub handles on GitHub; "
+                               "nicknames, display names or {uuid}s on Bitbucket Cloud")
     ship_p.add_argument("--base", default=None,
                           help="Override base branch (default: each repo's default_branch)")
     ship_p.add_argument("--dry-run", action="store_true",
@@ -4100,9 +4102,12 @@ def main() -> None:
 
     reply_p = subparsers.add_parser(
         "reply",
-        help="Post a reply to a GH review thread",
+        help="Post a reply to a PR review thread",
     )
-    reply_p.add_argument("thread_id", help="Thread node ID (starts with PRRT_)")
+    reply_p.add_argument(
+        "thread_id",
+        help="Thread id: GitHub node id (PRRT_...) or Bitbucket bb:<workspace>/<repo>#<pr>/<comment>",
+    )
     _reply_body_g = reply_p.add_mutually_exclusive_group()
     _reply_body_g.add_argument("--body", default=None,
                                help="Reply body text")
@@ -4116,9 +4121,12 @@ def main() -> None:
 
     resolve_p = subparsers.add_parser(
         "resolve",
-        help="Resolve a GitHub PR review thread and record it locally",
+        help="Resolve a PR review thread and record it locally",
     )
-    resolve_p.add_argument("thread_id", help="Thread node ID (starts with PRRT_)")
+    resolve_p.add_argument(
+        "thread_id",
+        help="Thread id: GitHub node id (PRRT_...) or Bitbucket bb:<workspace>/<repo>#<pr>/<comment>",
+    )
     resolve_p.add_argument("--feature", default=None,
                            help="Feature alias; defaults to canonical feature")
     resolve_p.add_argument("--json", action="store_true", help="Output as JSON")

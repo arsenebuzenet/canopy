@@ -1,16 +1,16 @@
 """pr_map — core PR-mapping (branch ↔ PR ↔ feature lane).
 
 Extracted from triage.py in the phase-5 prune. This is the mapping half —
-fetch open PRs, resolve owner/slug, group by feature lane. The *tiers* half
-(priority/enrichment) stays in triage. registry's remote overlay imports
+fetch open PRs, resolve each repo's remote, group by feature lane. The *tiers*
+half (priority/enrichment) stays in triage. registry's remote overlay imports
 `_fetch_open_prs` from here; nothing here pulls in the temporal review
 classifier or the priority logic.
 """
 from __future__ import annotations
 
-from ..integrations import github as gh
+from ..integrations import review
 from ..workspace.workspace import Workspace
-from .aliases import _resolve_owner_slug
+from .aliases import _resolve_remote
 from .errors import BlockerError
 
 
@@ -20,16 +20,20 @@ def _fetch_open_prs(
     out: dict[str, list[dict]] = {}
     for repo_name in target_repos:
         try:
-            owner, slug = _resolve_owner_slug(workspace, repo_name)
+            remote = _resolve_remote(workspace, repo_name)
         except BlockerError:
-            # Repo with no parseable github remote — skip silently
+            # Repo with no parseable github/bitbucket remote — skip silently
             out[repo_name] = []
             continue
         try:
-            out[repo_name] = gh.list_open_prs(
-                workspace.config.root, owner, slug, author=author,
+            out[repo_name] = review.list_open_prs(
+                workspace.config.root, remote, author=author,
             )
-        except gh.GitHubNotConfiguredError as e:
+        except review.ReviewApiError:
+            # Same degradation as the GitHub backend on a gh failure: no PRs
+            # for this repo rather than an aborted multi-repo read.
+            out[repo_name] = []
+        except review.PlatformNotConfiguredError as e:
             from .errors import FixAction
             payload = e.payload or {}
             fix_actions = [
@@ -38,10 +42,10 @@ def _fetch_open_prs(
                 for fa in payload.get("fix_actions", [])
             ]
             raise BlockerError(
-                code=payload.get("code", "github_not_configured"),
+                code=payload.get("code", f"{remote.platform}_not_configured"),
                 what=payload.get("what", str(e)),
                 fix_actions=fix_actions,
-                details={"repo": repo_name},
+                details={"repo": repo_name, "platform": remote.platform},
             )
     return out
 

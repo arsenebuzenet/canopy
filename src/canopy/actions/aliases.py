@@ -9,8 +9,8 @@ Supported alias forms:
   - Feature alias: feature name (e.g. ``auth-flow``) or Linear issue ID
     (e.g. ``TEAM-101``). Resolves via ``FeatureCoordinator._resolve_name``
     + ``features.json`` ``linear_issue`` field.
-  - PR specific: ``<repo>#<pr_number>`` (e.g. ``api#142``) or a GitHub PR
-    URL.
+  - PR specific: ``<repo>#<pr_number>`` (e.g. ``api#142``) or a GitHub /
+    Bitbucket PR URL.
   - Branch specific: ``<repo>:<branch>`` (e.g. ``api:auth-flow``).
   - **Slot id:** ``worktree-N`` resolves to the feature currently in that
     slot. ``BlockerError(empty_slot)`` when the slot is empty;
@@ -23,21 +23,26 @@ from dataclasses import dataclass
 
 from ..workspace.workspace import Workspace
 from .errors import BlockerError, FixAction
+from ..integrations.platforms import RemoteRef, parse_pr_url, parse_remote
 
 
 _LINEAR_ID = re.compile(r"^[A-Z]+-\d+$", re.IGNORECASE)
 _PR_SPECIFIC = re.compile(r"^([A-Za-z0-9_.-]+)#(\d+)$")
 _BRANCH_SPECIFIC = re.compile(r"^([A-Za-z0-9_.-]+):(.+)$")
-_PR_URL = re.compile(r"^https?://github\.com/([^/]+)/([^/]+)/pull/(\d+)")
 _SLOT_ID = re.compile(r"^worktree-(\d+)$")
 
 
 @dataclass(frozen=True)
 class PRTarget:
     repo: str           # canopy repo name
-    owner: str          # github owner
-    repo_slug: str      # github repo
+    owner: str          # github owner / bitbucket workspace
+    repo_slug: str      # repo slug on the platform
     pr_number: int
+    platform: str = "github"
+
+    @property
+    def remote(self) -> RemoteRef:
+        return RemoteRef(self.platform, self.owner, self.repo_slug)
 
 
 @dataclass(frozen=True)
@@ -286,11 +291,11 @@ def resolve_pr_targets(workspace: Workspace, alias: str) -> list[PRTarget]:
       - Feature alias (all PRs in the lane, across repos — uses per-repo
         branches map when set)
     """
-    m = _PR_URL.match(alias)
-    if m:
-        owner, repo_slug, pr = m.group(1), m.group(2), int(m.group(3))
-        canopy_repo = _find_canopy_repo_by_slug(workspace, owner, repo_slug)
-        return [PRTarget(canopy_repo, owner, repo_slug, pr)]
+    parsed_url = parse_pr_url(alias)
+    if parsed_url:
+        remote, pr = parsed_url
+        canopy_repo = _find_canopy_repo_by_remote(workspace, remote)
+        return [PRTarget(canopy_repo, remote.owner, remote.slug, pr, platform=remote.platform)]
 
     m = _PR_SPECIFIC.match(alias)
     if m:
@@ -302,28 +307,26 @@ def resolve_pr_targets(workspace: Workspace, alias: str) -> list[PRTarget]:
                 expected={"available_repos": sorted(r.config.name for r in workspace.repos)},
                 details={"alias": alias},
             )
-        owner, repo_slug = _resolve_owner_slug(workspace, canopy_repo)
-        return [PRTarget(canopy_repo, owner, repo_slug, pr)]
+        remote = _resolve_remote(workspace, canopy_repo)
+        return [PRTarget(canopy_repo, remote.owner, remote.slug, pr, platform=remote.platform)]
 
     feature_name = resolve_feature(workspace, alias)
     repo_branches = repos_for_feature(workspace, feature_name)
 
-    # Imported here (not at module top) to avoid a circular import: github
-    # imports from canopy.actions.errors which imports from this package.
-    from ..integrations import github as _gh
+    from ..integrations import review
 
     targets: list[PRTarget] = []
     for canopy_repo, branch in repo_branches.items():
         try:
-            owner, repo_slug = _resolve_owner_slug(workspace, canopy_repo)
+            remote = _resolve_remote(workspace, canopy_repo)
         except BlockerError:
             continue
-        pr = _gh.find_pull_request(workspace.config.root, owner, repo_slug, branch)
+        pr = review.find_pull_request(workspace.config.root, remote, branch)
         if pr is None:
             continue
         targets.append(PRTarget(
-            repo=canopy_repo, owner=owner, repo_slug=repo_slug,
-            pr_number=pr["number"],
+            repo=canopy_repo, owner=remote.owner, repo_slug=remote.slug,
+            pr_number=pr["number"], platform=remote.platform,
         ))
 
     if not targets:
@@ -387,35 +390,35 @@ def resolve_branch_targets(
     return [BranchTarget(r, b) for r, b in repo_branches.items()]
 
 
-def _find_canopy_repo_by_slug(workspace: Workspace, owner: str, slug: str) -> str:
+def _find_canopy_repo_by_remote(workspace: Workspace, remote: RemoteRef) -> str:
     from ..git import repo as git
-    target_lc = f"{owner}/{slug}".lower()
-    target_lc_no_dotgit = target_lc.removesuffix(".git")
     for state in workspace.repos:
         try:
-            url = git.remote_url(state.abs_path).lower().removesuffix(".git")
+            parsed = parse_remote(git.remote_url(state.abs_path))
         except Exception:
             continue
-        if target_lc in url or target_lc_no_dotgit in url:
+        if parsed and (parsed.platform, parsed.owner.lower(), parsed.slug.lower()) == (
+            remote.platform, remote.owner.lower(), remote.slug.lower(),
+        ):
             return state.config.name
     raise BlockerError(
-        code="unknown_github_repo",
-        what=f"no canopy repo matches github {owner}/{slug}",
+        code="unknown_remote_repo",
+        what=f"no canopy repo matches {remote.platform} {remote.owner}/{remote.slug}",
         expected={"available_repos": sorted(r.config.name for r in workspace.repos)},
-        details={"owner": owner, "slug": slug},
+        details={"platform": remote.platform, "owner": remote.owner, "slug": remote.slug},
     )
 
 
-def _resolve_owner_slug(workspace: Workspace, canopy_repo: str) -> tuple[str, str]:
+def _resolve_remote(workspace: Workspace, canopy_repo: str) -> RemoteRef:
+    """Platform + owner + slug of a repo's origin remote."""
     from ..git import repo as git
-    from ..integrations.github import _extract_owner_repo
     state = workspace.get_repo(canopy_repo)
     url = git.remote_url(state.abs_path)
-    parsed = _extract_owner_repo(url)
+    parsed = parse_remote(url)
     if not parsed:
         raise BlockerError(
             code="unparseable_remote",
-            what=f"can't extract owner/repo from {canopy_repo} remote: {url}",
+            what=f"can't extract a GitHub or Bitbucket owner/repo from {canopy_repo} remote: {url}",
             details={"canopy_repo": canopy_repo, "remote_url": url},
         )
     return parsed

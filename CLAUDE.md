@@ -80,6 +80,9 @@ src/canopy/
 ├── integrations/
 │   ├── linear.py            # Linear issue fetching (via mcp/client.py)
 │   ├── github.py            # GitHub PR + comments (MCP or gh CLI fallback)
+│   ├── platforms.py         # RemoteRef + remote/PR-URL/thread-id parsing (no canopy imports)
+│   ├── review.py            # review-platform façade: dispatch GitHub / Bitbucket per RemoteRef
+│   ├── bitbucket.py         # Bitbucket Cloud REST backend (urllib; same shapes as github.py)
 │   └── precommit.py         # detect + run pre-commit hooks
 └── mcp/
     ├── server.py            # MCP server — 15 agent tools, stdio transport
@@ -102,6 +105,7 @@ src/canopy/
 - **State files** at `.canopy/state/heads.json` (post-checkout hook output), `.canopy/state/preflight.json` (preflight tracker), `.canopy/state/slots.json` (canonical + warm slot occupancy + `last_touched` LRU map + `in_flight` transaction marker), `.canopy/state/visits.json` (per-feature last-visit anchor: `{feature: {last_visit, previous_visit}}`), and `.canopy/state/thread_resolutions.json` (log of GH review threads canopy itself resolved: `{thread_id: {resolved_by_canopy_at, feature, via_command, via_commit_sha}}`). OAuth tokens at `~/.canopy/mcp-tokens/`.
 - **MCP client supports two transports.** Stdio (existing) for npm/python servers. HTTP+OAuth (new) for hosted servers like Linear's `mcp.linear.app`. Tokens cache per server.
 - **GitHub fallback to gh CLI.** When no `github` MCP server is configured, `integrations/github.py` falls back to `gh api` / `gh pr` for the same return shapes. If neither is available, raises `BlockerError(code='github_not_configured')` with platform-aware install hints.
+- **Review platform is per repo.** `aliases._resolve_remote` parses `origin` into a `RemoteRef(platform, owner, slug)`; callers go through `integrations/review.py`, never `github.py` / `bitbucket.py` directly. Bitbucket thread ids are `bb:<ws>/<repo>#<pr>/<comment>`.
 - **Single source of truth for state.** `management/feature_state.py` uses live git (not heads.json) so it's correct even when the hook hasn't fired. `drift` uses heads.json for the fast cached path.
 - **Feature-aware stash tagging** — `stash save --feature` writes `[canopy <feature> @ <ts>] <message>`. Parser tolerates git's `On <branch>: ` auto-prefix.
 

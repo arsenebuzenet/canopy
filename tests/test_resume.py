@@ -1166,7 +1166,7 @@ class TestPrCoordsPerRepo:
         from canopy.management.resume import _pr_coords_per_repo
 
         ws = _load_workspace(canopy_toml_for_workspace)
-        # The fixture uses file:// remotes which _extract_owner_repo cannot parse.
+        # The fixture uses file:// remotes, which parse_remote rejects.
         result = _pr_coords_per_repo(ws, "auth-flow")
 
         assert isinstance(result, dict)

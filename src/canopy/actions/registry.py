@@ -68,9 +68,9 @@ def _remote_overlay(workspace: Workspace, out: dict, author: str) -> None:
     """Merge live PR data into per-repo entries; cache fallback if offline."""
     from . import pr_map
     from . import prs_cache
-    from .aliases import _resolve_owner_slug
+    from .aliases import _resolve_remote
     from ..git import repo as git
-    from ..integrations import github as gh
+    from ..integrations import review
 
     repo_names = list({r for f in out["features"].values() for r in f["repos"]})
     stale = False
@@ -97,9 +97,9 @@ def _remote_overlay(workspace: Workspace, out: dict, author: str) -> None:
                     # overlay, so it's caught locally rather than bubbling
                     # to the outer stale-fallback handler.
                     try:
-                        owner, slug = _resolve_owner_slug(workspace, repo_name)
-                        rollup, _raw = gh.get_pr_checks(
-                            workspace.config.root, owner, slug, slim["number"],
+                        remote = _resolve_remote(workspace, repo_name)
+                        rollup, _raw = review.get_pr_checks(
+                            workspace.config.root, remote, slim["number"],
                         )
                         slim["checks_summary"] = {
                             "status": rollup.get("status"),

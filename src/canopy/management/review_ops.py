@@ -1,8 +1,9 @@
 """review_ops — PR-review operations (quarantined management surface).
 
 The three review methods extracted from FeatureCoordinator in the phase-5
-prune. They pull GitHub + review_filter; keeping them out of the foundational
-coordinator keeps the agent-core decoupled from the management surface.
+prune. They pull the review-platform façade + review_filter; keeping them out
+of the foundational coordinator keeps the agent-core decoupled from the
+management surface.
 Callers: the management MCP tools and the `canopy review` / feature-scoped
 preflight CLI paths.
 """
@@ -18,8 +19,8 @@ from ..workspace.workspace import Workspace
 def review_status(workspace: Workspace, name: str) -> dict:
     """Check if PRs exist for a feature lane across repos.
 
-    For each repo, resolves the remote URL to owner/repo, then queries
-    GitHub MCP for an open PR matching the feature branch.
+    For each repo, resolves the remote URL to a platform owner/repo, then
+    queries that platform for an open PR matching the feature branch.
 
     Returns:
         {
@@ -28,6 +29,7 @@ def review_status(workspace: Workspace, name: str) -> dict:
             "repos": {
                 "<repo>": {
                     "branch": str,
+                    "platform": str,
                     "owner": str,
                     "repo_name": str,
                     "pr": {number, title, url, state, head_branch} | None,
@@ -38,76 +40,70 @@ def review_status(workspace: Workspace, name: str) -> dict:
 
     Raises:
         ValueError: If the feature doesn't exist.
-        GitHubNotConfiguredError: If GitHub MCP is not configured.
+        PlatformNotConfiguredError: If no review platform transport is configured.
     """
-    from ..integrations.github import (
-        is_github_configured,
-        find_pull_request,
-        _extract_owner_repo,
-        GitHubNotConfiguredError,
-    )
+    from ..integrations import review
+    from ..actions.aliases import _resolve_remote
 
     coord = FeatureCoordinator(workspace)
     name = coord._resolve_name(name)
-
-    if not is_github_configured(workspace.config.root):
-        raise GitHubNotConfiguredError(
-            "GitHub MCP not configured.\n"
-            "Add a 'github' entry to .canopy/mcps.json:\n"
-            "  {\n"
-            '    "github": {\n'
-            '      "command": "npx",\n'
-            '      "args": ["-y", "@modelcontextprotocol/server-github"],\n'
-            '      "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_..."}\n'
-            "    }\n"
-            "  }"
-        )
-
     lane = coord.status(name)
+
+    remotes: dict[str, object] = {}
+    for repo_name in lane.repos:
+        try:
+            remotes[repo_name] = _resolve_remote(workspace, repo_name)
+        except Exception:
+            # unparseable_remote, unknown repo, or git failing on a repo
+            # with no origin — all reported per repo below.
+            remotes[repo_name] = None
+
+    # Refuse up front when no configured transport exists for any repo that
+    # has a recognisable remote — same behaviour as before, now per platform.
+    known = [r for r in remotes.values() if r is not None]
+    # One probe per platform, not per repo: is_configured spawns `gh auth
+    # status` for GitHub, and a ten-repo workspace would spawn it ten times.
+    platforms = {r.platform for r in known}
+    representatives = [next(r for r in known if r.platform == p) for p in sorted(platforms)]
+    if known and not any(review.is_configured(workspace.config.root, r) for r in representatives):
+        raise review.PlatformNotConfiguredError(payload=review.unavailable_blocker(known[0]))
+
     results: dict[str, dict] = {}
     has_any_pr = False
 
     for repo_name in lane.repos:
-        try:
-            state = workspace.get_repo(repo_name)
-        except KeyError:
-            results[repo_name] = {"error": "repo not found"}
-            continue
-
-        remote = git.remote_url(state.abs_path)
-        if not remote:
+        remote = remotes.get(repo_name)
+        if remote is None:
+            try:
+                state = workspace.get_repo(repo_name)
+                url = git.remote_url(state.abs_path)
+            except KeyError:
+                results[repo_name] = {"error": "repo not found"}
+                continue
             results[repo_name] = {
                 "branch": name,
-                "error": "no remote URL configured",
+                "error": ("no remote URL configured" if not url
+                          else f"could not parse a GitHub or Bitbucket owner/repo from: {url}"),
             }
             continue
 
-        parsed = _extract_owner_repo(remote)
-        if not parsed:
-            results[repo_name] = {
-                "branch": name,
-                "error": f"could not parse GitHub owner/repo from: {remote}",
-            }
-            continue
-
-        owner, repo_slug = parsed
         try:
-            pr = find_pull_request(
-                workspace.config.root, owner, repo_slug, name,
-            )
+            pr = review.find_pull_request(workspace.config.root, remote, name)
             if pr:
                 has_any_pr = True
             results[repo_name] = {
                 "branch": name,
-                "owner": owner,
-                "repo_name": repo_slug,
+                "platform": remote.platform,
+                "owner": remote.owner,
+                "repo_name": remote.slug,
                 "pr": pr,
             }
         except Exception as e:
             results[repo_name] = {
                 "branch": name,
-                "owner": owner,
-                "repo_name": repo_slug,
+                "platform": remote.platform,
+                "owner": remote.owner,
+                "repo_name": remote.slug,
                 "pr": None,
                 "error": str(e),
             }
@@ -128,7 +124,7 @@ def review_comments(workspace: Workspace, name: str) -> dict:
     Per repo, threads are sorted into:
       - ``actionable_threads``: full comment data; agent reads these
       - ``likely_resolved_threads``: slim summary + addressing commit
-      - ``resolved_thread_count``: GitHub-flagged resolved (excluded)
+      - ``resolved_thread_count``: platform-flagged resolved (excluded)
 
     See ``actions.review_filter.classify_threads`` for the algorithm
     (validated against 4 real PRs in the research doc).
@@ -154,19 +150,17 @@ def review_comments(workspace: Workspace, name: str) -> dict:
 
     Raises:
         PullRequestNotFoundError: If no PR exists for any repo.
-        GitHubNotConfiguredError: If GitHub MCP is not configured.
+        PlatformNotConfiguredError: If no review platform transport is configured.
     """
-    from ..integrations.github import (
-        get_review_comments,
-        PullRequestNotFoundError,
-    )
+    from ..integrations import review
+    from ..integrations.platforms import RemoteRef
     from .review_filter import classify_threads
 
     coord = FeatureCoordinator(workspace)
     name = coord._resolve_name(name)
     status = review_status(workspace, name)
     if not status["has_prs"]:
-        raise PullRequestNotFoundError(
+        raise review.PullRequestNotFoundError(
             f"No open PRs found for feature '{name}' in any repo. "
             "Push your branch and create a PR first."
         )
@@ -181,20 +175,21 @@ def review_comments(workspace: Workspace, name: str) -> dict:
         if not pr:
             continue
 
-        owner = info.get("owner", "")
-        repo_slug = info.get("repo_name", "")
         pr_number = pr["number"]
+        remote = RemoteRef(
+            info.get("platform", "github"), info.get("owner", ""), info.get("repo_name", ""),
+        )
 
         try:
-            comments, resolved_count = get_review_comments(
-                workspace.config.root, owner, repo_slug, pr_number,
+            comments, resolved_count = review.get_review_comments(
+                workspace.config.root, remote, pr_number,
             )
             repo_state = workspace.get_repo(repo_name)
             branch = info.get("branch") or repo_state.current_branch
             classification = classify_threads(
                 comments, repo_state.abs_path, branch,
             )
-            # Promote the GitHub-resolved count from upstream filtering.
+            # Promote the platform-resolved count from upstream filtering.
             classification["resolved_thread_count"] = resolved_count
 
             actionable_total += len(classification["actionable_threads"])

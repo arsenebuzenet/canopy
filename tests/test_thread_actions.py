@@ -269,3 +269,42 @@ def test_reply_command_json_smoke(canopy_toml, monkeypatch, capsys):
     data = _json.loads(capsys.readouterr().out)
     assert "posted" in data
     assert data["posted"]["url"] == posted["url"]
+
+
+# ── Bitbucket thread ids ─────────────────────────────────────────────────
+
+
+def test_resolve_thread_accepts_bitbucket_id(canopy_toml, monkeypatch):
+    from canopy.management.thread_actions import resolve_thread
+    from canopy.integrations import bitbucket
+    calls = {}
+
+    def fake(root, owner, slug, pr, cid):
+        calls.update(owner=owner, slug=slug, pr=pr, cid=cid)
+        return {"thread_id": f"bb:{owner}/{slug}#{pr}/{cid}", "is_resolved": True}
+
+    monkeypatch.setattr(bitbucket, "resolve_thread", fake)
+    ws = Workspace(load_config(canopy_toml))
+    out = resolve_thread(ws, "bb:filoventeam/report.server#27/860145471", feature="auth-flow")
+    assert calls == {"owner": "filoventeam", "slug": "report.server", "pr": 27, "cid": 860145471}
+    assert out["is_resolved"] is True
+    assert "bb:filoventeam/report.server#27/860145471" in tr.load(canopy_toml)
+
+
+def test_reply_to_thread_bitbucket_with_resolve(canopy_toml, monkeypatch):
+    from canopy.management.thread_actions import reply_to_thread
+    from canopy.integrations import bitbucket
+    monkeypatch.setattr(bitbucket, "reply_to_thread", lambda root, o, s, pr, cid, body: {"comment_id": 1, "url": "u"})
+    monkeypatch.setattr(bitbucket, "resolve_thread", lambda root, o, s, pr, cid: {"thread_id": "x", "is_resolved": True})
+    ws = Workspace(load_config(canopy_toml))
+    out = reply_to_thread(ws, "bb:ws/slug#1/2", "done", feature="f", resolve_after=True)
+    assert out["posted"]["url"] == "u" and out["resolved"]["is_resolved"] is True
+
+
+@pytest.mark.parametrize("bad", ["nonsense", "bb:ws#1/2", ""])
+def test_invalid_thread_id_blocks(canopy_toml, bad):
+    from canopy.management.thread_actions import resolve_thread
+    ws = Workspace(load_config(canopy_toml))
+    with pytest.raises(BlockerError) as exc_info:
+        resolve_thread(ws, bad, feature="f")
+    assert exc_info.value.code == "invalid_thread_id"

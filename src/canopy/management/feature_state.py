@@ -26,10 +26,10 @@ from pathlib import Path
 from typing import Any
 
 from ..git import repo as git
-from ..integrations import github as gh
+from ..integrations import review
 from ..workspace.workspace import Workspace
 from ..actions.aliases import (
-    repos_for_feature, resolve_feature, _resolve_owner_slug,
+    repos_for_feature, resolve_feature, _resolve_remote,
 )
 from ..actions.augments import bot_authors
 from .bot_resolutions import resolutions_for_feature
@@ -146,11 +146,12 @@ def _per_repo_facts(
 
         # PR + comment data.
         try:
-            owner, slug = _resolve_owner_slug(workspace, repo_name)
+            remote = _resolve_remote(workspace, repo_name)
         except Exception:
-            owner, slug = "", ""
-        facts["owner"] = owner
-        facts["repo_slug"] = slug
+            remote = None
+        facts["owner"] = remote.owner if remote else ""
+        facts["repo_slug"] = remote.slug if remote else ""
+        facts["platform"] = remote.platform if remote else ""
         facts["pr"] = None
         facts["actionable_count"] = 0
         facts["actionable_human_count"] = 0
@@ -158,12 +159,12 @@ def _per_repo_facts(
         facts["actionable_bot_threads"] = []
         facts["likely_resolved_count"] = 0
         facts["review_decision"] = ""
-        if owner and slug:
+        if remote:
             try:
-                pr = gh.find_pull_request(
-                    workspace.config.root, owner, slug, branch,
+                pr = review.find_pull_request(
+                    workspace.config.root, remote, branch,
                 )
-            except gh.GitHubNotConfiguredError:
+            except (review.PlatformNotConfiguredError, review.ReviewApiError):
                 pr = None
             if pr:
                 facts["pr"] = pr
@@ -172,15 +173,15 @@ def _per_repo_facts(
                 # default to ``no_checks`` rather than blocking the
                 # whole feature_state read.
                 try:
-                    ci_status, _raw = gh.get_pr_checks(
-                        workspace.config.root, owner, slug, pr["number"],
+                    ci_status, _raw = review.get_pr_checks(
+                        workspace.config.root, remote, pr["number"],
                     )
                     facts["ci_status"] = ci_status
                 except Exception:
                     facts["ci_status"] = {"status": "no_checks"}
                 try:
-                    comments, _ = gh.get_review_comments(
-                        workspace.config.root, owner, slug, pr["number"],
+                    comments, _ = review.get_review_comments(
+                        workspace.config.root, remote, pr["number"],
                     )
                     classification = classify_threads(comments, repo_path, branch)
                     actionable = classification["actionable_threads"]

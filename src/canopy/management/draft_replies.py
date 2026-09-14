@@ -18,7 +18,7 @@ import re
 from typing import Any
 
 from ..git import repo as git
-from ..integrations import github as gh
+from ..integrations import review
 from ..workspace.workspace import Workspace
 from ..actions.aliases import resolve_pr_targets
 
@@ -52,12 +52,12 @@ def draft_replies(
     unaddressed_total = 0
 
     for t in targets:
-        comments, _ = gh.get_review_comments(
-            workspace.config.root, t.owner, t.repo_slug, t.pr_number,
+        comments, _ = review.get_review_comments(
+            workspace.config.root, t.remote, t.pr_number,
         )
         state = workspace.get_repo(t.repo)
-        pr = gh.get_pull_request_by_number(
-            workspace.config.root, t.owner, t.repo_slug, t.pr_number,
+        pr = review.get_pull_request_by_number(
+            workspace.config.root, t.remote, t.pr_number,
         )
         branch = (pr or {}).get("head_branch") or state.current_branch
         classification = classify_threads(comments, state.abs_path, branch)
