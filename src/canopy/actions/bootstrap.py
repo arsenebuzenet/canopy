@@ -33,6 +33,7 @@ from . import slots as slots_mod
 from .aliases import resolve_feature
 from .errors import BlockerError
 from .ide_workspace import render_code_workspace
+from .. import proc
 
 ALLOWED_STEPS = ("env", "deps", "ide", "hooks")
 
@@ -360,7 +361,7 @@ def _run_hook_install(worktree_path: Path, repo_cfg) -> dict[str, Any]:
             data = _json.loads(pkg.read_text(encoding="utf-8"))
             if "prepare" in (data.get("scripts") or {}):
                 pm = "pnpm" if (worktree_path / "pnpm-lock.yaml").exists() else "npm"
-                cp = subprocess.run([pm, "run", "prepare"], cwd=str(worktree_path),
+                cp = proc.run([pm, "run", "prepare"], cwd=str(worktree_path),
                                     capture_output=True, text=True, encoding="utf-8")
                 return {"status": "ok" if cp.returncode == 0 else "failed",
                         "mechanism": f"{pm}-prepare", "exit_code": cp.returncode}

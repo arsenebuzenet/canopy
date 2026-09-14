@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .. import compat
+from .. import proc
 
 _HOOK_NAME = "post-checkout"
 _CHAINED_NAME = "post-checkout.canopy-chained"
@@ -157,7 +158,7 @@ def resolve_hooks_dir(repo_path: Path) -> Path:
 
 def _get_core_hooks_path(repo_path: Path) -> Path | None:
     """Read ``core.hooksPath`` from the repo's config. Returns None if unset."""
-    result = subprocess.run(
+    result = proc.run(
         ["git", "config", "--get", "core.hooksPath"],
         cwd=repo_path, capture_output=True, text=True, encoding="utf-8", check=False,
     )

@@ -11,6 +11,7 @@ import subprocess
 from pathlib import Path
 
 from .. import compat
+from .. import proc
 
 
 class PrecommitError(Exception):
@@ -44,7 +45,7 @@ def detect_precommit(repo_path: Path) -> str:
         # Worktree — .git is a file pointing to the main repo's .git dir
         # Hooks live in the main repo's hooks dir, but git resolves this
         # automatically when we run `git hook run`
-        result = subprocess.run(
+        result = proc.run(
             ["git", "rev-parse", "--git-common-dir"],
             capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
         )
@@ -128,7 +129,7 @@ def _run_custom_preflight(repo_path: Path, command: str) -> dict:
 
 def _run_framework(repo_path: Path) -> dict:
     """Run `pre-commit run --all-files`."""
-    result = subprocess.run(
+    result = proc.run(
         ["pre-commit", "run", "--all-files"],
         capture_output=True,
         text=True, encoding="utf-8",
@@ -150,7 +151,7 @@ def _run_framework(repo_path: Path) -> dict:
 def _run_git_hook(repo_path: Path) -> dict:
     """Run git hook via `git hook run pre-commit`."""
     # Try `git hook run` first (Git 2.36+), fall back to direct execution
-    result = subprocess.run(
+    result = proc.run(
         ["git", "hook", "run", "pre-commit"],
         capture_output=True,
         text=True, encoding="utf-8",
@@ -171,7 +172,7 @@ def _run_git_hook(repo_path: Path) -> dict:
         # Direct execution fallback
         hook_path = _resolve_hook_path(repo_path)
         if hook_path and hook_path.exists():
-            result = subprocess.run(
+            result = proc.run(
                 [str(hook_path)],
                 capture_output=True,
                 text=True, encoding="utf-8",
@@ -203,7 +204,7 @@ def _resolve_hook_path(repo_path: Path) -> Path | None:
         return git_path / "hooks" / "pre-commit"
 
     # Worktree
-    result = subprocess.run(
+    result = proc.run(
         ["git", "rev-parse", "--git-common-dir"],
         capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
     )

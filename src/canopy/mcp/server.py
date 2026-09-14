@@ -32,6 +32,7 @@ from ..git import repo as git
 # (reversible) tools below — kept so uncommenting a tool needs no import edit.
 from ..features.coordinator import FeatureCoordinator
 from ..git import multi
+from .. import proc
 
 
 # ── Server setup ─────────────────────────────────────────────────────────
@@ -83,7 +84,7 @@ def version() -> dict:
     cli_path = shutil.which("canopy")
     if cli_path:
         try:
-            out = subprocess.run(
+            out = proc.run(
                 [cli_path, "--version"],
                 capture_output=True, text=True, encoding="utf-8", check=False, timeout=5,
             )
