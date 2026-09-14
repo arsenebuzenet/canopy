@@ -16,6 +16,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from .. import proc
 from ..mcp.client import (
     get_mcp_config,
     is_mcp_configured,
@@ -68,7 +69,7 @@ def have_gh_cli() -> bool:
     """True if the gh CLI is installed and authenticated."""
     if shutil.which("gh") is None:
         return False
-    result = subprocess.run(
+    result = proc.run(
         ["gh", "auth", "status"], capture_output=True, text=True, encoding="utf-8", check=False,
     )
     return result.returncode == 0
@@ -141,7 +142,7 @@ def github_unavailable_blocker() -> dict:
 def _gh(args: list[str], timeout: float = 15.0) -> str:
     """Run gh and return stdout. Raises GitHubNotConfiguredError on failure."""
     try:
-        proc = subprocess.run(
+        result = proc.run(
             ["gh"] + args, capture_output=True, text=True, encoding="utf-8",
             timeout=timeout, check=False,
         )
@@ -149,11 +150,11 @@ def _gh(args: list[str], timeout: float = 15.0) -> str:
         raise GitHubNotConfiguredError(f"gh CLI not on PATH: {e}")
     except subprocess.TimeoutExpired as e:
         raise GitHubNotConfiguredError(f"gh CLI timed out: {' '.join(args)}")
-    if proc.returncode != 0:
+    if result.returncode != 0:
         raise GitHubNotConfiguredError(
-            f"gh {' '.join(args)} failed: {proc.stderr.strip() or proc.stdout.strip()}"
+            f"gh {' '.join(args)} failed: {result.stderr.strip() or result.stdout.strip()}"
         )
-    return proc.stdout
+    return result.stdout
 
 
 def _parse_mcp_result(result: Any) -> Any:
@@ -698,12 +699,12 @@ def _graphql_via_gh_cli(query: str, vars: dict) -> dict:
             args.extend(["-F", f"{k}={v}"])
         else:
             args.extend(["-f", f"{k}={v}"])
-    proc = subprocess.run(args, capture_output=True, text=True, encoding="utf-8")
-    if proc.returncode != 0:
+    result = proc.run(args, capture_output=True, text=True, encoding="utf-8")
+    if result.returncode != 0:
         raise GitHubNotConfiguredError(
-            f"gh api graphql failed: {proc.stderr.strip()}"
+            f"gh api graphql failed: {result.stderr.strip()}"
         )
-    return json.loads(proc.stdout)
+    return json.loads(result.stdout)
 
 
 def _graphql(workspace_root: Path, query: str, **vars) -> dict:
