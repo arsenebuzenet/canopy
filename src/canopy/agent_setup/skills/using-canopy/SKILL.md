@@ -166,8 +166,8 @@ If you decided something but forgot to call `historian_decide`, end the turn wit
 When `mcp__canopy__feature_state` returns state `awaiting_bot_resolution`, only bot nits (CodeRabbit, Korbit, Cubic, etc.) are blocking — humans haven't requested changes. The `summary` splits the actionable count into `actionable_bot_count` and `actionable_human_count` so you can tell which side needs attention.
 
 - `mcp__canopy__bot_comments_status(feature)` returns the per-PR rollup: total / resolved / unresolved + per-thread metadata (id, author, file, body preview).
-- `mcp__canopy__commit` is commit-only (4.0): it no longer takes an `address` argument. Record which bot comment a commit addresses via `canopy resolve <thread_id>` after the commit.
-- Address one comment per commit so the resolution log stays granular and the next `bot-status` call has clean per-comment provenance.
+- `mcp__canopy__commit` is commit-only (4.0): it no longer takes an `address` argument. After committing, close the bot thread with `canopy resolve <thread_id>` so it drops out of `actionable_bot_count`.
+- Address one comment per commit so each thread can be closed as soon as its fix lands.
 
 ## Anti-patterns
 
