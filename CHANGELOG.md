@@ -4,6 +4,15 @@ Tracks the Python side (CLI + MCP server). The VSCode extension has its own [vsc
 
 Versions follow semver. Pre-1.0 — minor bumps may add features or break behavior; the README is the source-of-truth contract.
 
+## Unreleased
+
+- Fix: the `commit` MCP tool failed on every call with
+  `commit() got an unexpected keyword argument 'address'` — the wrapper in
+  `mcp/server.py` still forwarded the `address` / `resolve_thread` kwargs
+  that 4.0 removed from the action. The wrapper now matches the action's
+  signature, a test pins the two together, and the `using-canopy` skill no
+  longer describes `commit --address`.
+
 ## 4.0.0-rc5 — 2026-09-11 (Bitbucket Cloud)
 
 - Repos hosted on `bitbucket.org` are first-class review-platform targets:

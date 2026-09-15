@@ -269,9 +269,7 @@ def reclaim() -> dict:
 @mcp.tool()
 def commit(message: str = "", feature: str | None = None,
            repos: list[str] | None = None, paths: list[str] | None = None,
-           no_hooks: bool = False, amend: bool = False,
-           address: str | None = None,
-           resolve_thread: bool | None = None) -> dict:
+           no_hooks: bool = False, amend: bool = False) -> dict:
     """Commit across every repo in a feature lane with a single message (Wave 2.3).
 
     Defaults to the canonical feature when ``feature`` is omitted (reads
@@ -282,17 +280,6 @@ def commit(message: str = "", feature: str | None = None,
     branch. Mismatches raise ``BlockerError(code='wrong_branch')`` with
     a per-repo expected/actual map; no commits fire.
 
-    ``address`` (M3): a bot review comment id (numeric or GitHub URL).
-    When set, the message is auto-suffixed with the comment title + URL
-    and a resolution is recorded in ``.canopy/state/bot_resolutions.json``
-    against the matching repo's commit SHA. Non-bot comments raise
-    ``BlockerError(code='not_a_bot_comment')``.
-
-    ``resolve_thread`` (T4): when ``address`` is set, controls whether the
-    corresponding GitHub review thread is resolved after a successful commit.
-    ``True`` forces resolve; ``False`` forces skip; ``None`` (default) defers
-    to the workspace augment ``auto_resolve_threads_on_address``.
-
     Per-repo result statuses:
       - ``ok``           — committed; carries ``sha``, ``files_changed``.
       - ``nothing``      — no changes staged.
@@ -300,7 +287,7 @@ def commit(message: str = "", feature: str | None = None,
                             tail of ``hook_output``. Other repos continue.
       - ``failed``       — git error (gpg, locked index, etc.).
 
-    Returns ``{feature, results: {<repo>: {...}}, addressed?}`` on success,
+    Returns ``{feature, results: {<repo>: {...}}}`` on success,
     or a structured ``BlockerError``-shaped dict on pre-flight rejection.
     """
     from ..actions.commit import commit as _impl
@@ -310,8 +297,7 @@ def commit(message: str = "", feature: str | None = None,
         return _impl(
             ws, message,
             feature=feature, repos=repos, paths=paths,
-            no_hooks=no_hooks, amend=amend, address=address,
-            resolve_thread=resolve_thread,
+            no_hooks=no_hooks, amend=amend,
         )
     except ActionError as e:
         return e.to_dict()
