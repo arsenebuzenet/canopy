@@ -37,7 +37,7 @@ Do **not** call `feature_resume` more than once per session per feature unless y
 ### Closing out review threads
 
 When you finish reviewing a thread:
-- If your commit addresses it: `commit --address <comment_id> --resolve-thread` (or post-process with `mcp__canopy__resolve_thread`).
+- If your commit addresses it: commit normally with `mcp__canopy__commit`, then close the thread with `canopy resolve <thread_id>` (management CLI).
 - If the comment is wrong: `mcp__canopy__reply_to_thread <thread_id> <body>` with concrete evidence. Pass `resolve_after=true` when the pushback closes the discussion.
 
 ## Tool selection — what to use when
@@ -157,7 +157,6 @@ What to call when:
 
 Auto-capture from canopy actions (no extra calls needed):
 
-- `mcp__canopy__commit(address=...)` records the resolution into memory automatically (mirrors `bot_resolutions.json`).
 - `mcp__canopy__github_get_pr_comments(alias)` records `comment_read` for each actionable thread + `classifier_resolved` for the temporal-classifier output, deduped per-session.
 
 If you decided something but forgot to call `historian_decide`, end the turn with a `<historian-decisions>[{"title": "...", "rationale": "..."}, ...]</historian-decisions>` block. A future Stop hook (autopilot) will tail-parse it and persist (deduped against the explicit calls).
@@ -167,8 +166,8 @@ If you decided something but forgot to call `historian_decide`, end the turn wit
 When `mcp__canopy__feature_state` returns state `awaiting_bot_resolution`, only bot nits (CodeRabbit, Korbit, Cubic, etc.) are blocking — humans haven't requested changes. The `summary` splits the actionable count into `actionable_bot_count` and `actionable_human_count` so you can tell which side needs attention.
 
 - `mcp__canopy__bot_comments_status(feature)` returns the per-PR rollup: total / resolved / unresolved + per-thread metadata (id, author, file, body preview).
-- `mcp__canopy__commit(message, address=<comment-id>)` (or `canopy commit --address <id>`) auto-suffixes the commit message with the bot comment's title + URL and persists the resolution to `.canopy/state/bot_resolutions.json`. Resolved comments drop out of `actionable_bot_count` on the next `feature_state` call.
-- Address one comment per commit so the resolution log stays granular and the agent's next `bot-status` call has clean per-comment provenance.
+- `mcp__canopy__commit` is commit-only (4.0): it no longer takes an `address` argument. Record which bot comment a commit addresses via `canopy resolve <thread_id>` after the commit.
+- Address one comment per commit so the resolution log stays granular and the next `bot-status` call has clean per-comment provenance.
 
 ## Anti-patterns
 
