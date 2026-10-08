@@ -398,8 +398,9 @@ Keys are stringified GitHub comment IDs.
 
 ## .canopy/state/heads.json
 
-Written by the post-checkout hook on every branch checkout in any registered
-repo. Read by `drift` (the fast cached path), `doctor`, and the management
+Written by the post-checkout hook on every branch checkout in the main working
+tree of any registered repo (checkouts in linked worktrees, slots included, are
+not recorded). Read by `drift` (the fast cached path), `doctor`, and the management
 `historian`/`feature_state`.
 
 ```json
