@@ -290,7 +290,7 @@ authoritative management read. Separately, `advisories.py` surfaces registry/dis
 drift as *advisory* signals (observe, never enforce) — the enforcing counterpart
 is the `hook_gate.py` PreToolUse gate.
 
-The hook is shared across all worktrees of a repo via git's `commondir` mechanism — installing in the main repo covers every linked worktree. Honors `core.hooksPath` (Husky-compatible). Pre-existing user hooks are chained: canopy's hook moves them to `post-checkout.canopy-chained` and execs them after writing state.
+The hook is shared across all worktrees of a repo via git's `commondir` mechanism — installing in the main repo covers every linked worktree, but it only records checkouts in the main working tree, so a slot's checkout never overwrites the canonical entry. Honors `core.hooksPath` (Husky-compatible). Pre-existing user hooks are chained: canopy's hook moves them to `post-checkout.canopy-chained` and execs them after writing state.
 
 ### Action contract pathway
 

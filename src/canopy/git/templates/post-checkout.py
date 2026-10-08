@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# __CANOPY_HOOK_MARKER__ post-checkout v1
+# __CANOPY_HOOK_MARKER__ post-checkout v2
 """Canopy post-checkout hook — records HEAD state to .canopy/state/heads.json.
 
 Installed by `canopy hooks install`. Never blocks git operations on errors.
@@ -55,6 +55,16 @@ def _record_state() -> None:
     prev_sha, new_sha, is_branch_checkout = sys.argv[1], sys.argv[2], sys.argv[3]
     # Only record on branch checkouts (not file checkouts).
     if is_branch_checkout != "1":
+        return
+
+    # heads.json records each repo's main working tree. Linked worktrees
+    # share this hook through commondir; recording theirs would overwrite
+    # the main tree's entry with a branch it never checked out.
+    git_dir, common_dir = subprocess.run(
+        ["git", "rev-parse", "--git-dir", "--git-common-dir"],
+        capture_output=True, text=True, encoding="utf-8", check=False,
+    ).stdout.splitlines()
+    if Path(git_dir).resolve() != Path(common_dir).resolve():
         return
 
     branch = subprocess.run(

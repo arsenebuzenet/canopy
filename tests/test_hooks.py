@@ -247,18 +247,19 @@ def test_resolve_hooks_dir_for_worktree_points_at_main(workspace):
     assert resolve_hooks_dir(wt).resolve() == main_hooks
 
 
-def test_hook_installed_in_main_fires_from_worktree(workspace):
-    """The shared hook fires on checkouts in any worktree, recording the
-    worktree's branch."""
+def test_hook_ignores_checkouts_in_linked_worktrees(workspace):
+    """Neither `worktree add` nor a checkout inside the worktree may
+    overwrite the main working tree's entry."""
     root, api = workspace
     install_hook(api, "repo-a", root)
+    _git(["checkout", "-b", "canonical"], cwd=api)
 
     wt = root / "api-wt"
     _git(["worktree", "add", "-b", "wt-branch", str(wt)], cwd=api)
     _git(["checkout", "-b", "another-branch"], cwd=wt)
 
     state = read_heads_state(root)
-    assert state["repo-a"]["branch"] == "another-branch"
+    assert state["repo-a"]["branch"] == "canonical"
 
 
 def test_read_heads_state_missing_file(tmp_path):

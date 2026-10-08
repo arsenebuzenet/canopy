@@ -12,6 +12,12 @@ Versions follow semver. Pre-1.0 — minor bumps may add features or break behavi
   that 4.0 removed from the action. The wrapper now matches the action's
   signature, a test pins the two together, and the `using-canopy` skill no
   longer describes `commit --address`.
+- Fix: the post-checkout hook recorded checkouts made in linked worktrees
+  (slot loads, `git worktree add`) under the main repo's `heads.json` entry,
+  leaving `drift` and `doctor` (`heads_stale`) looking at a branch the main
+  working tree never checked out. The hook now records the main working tree
+  only. Existing installs keep the old hook until `canopy hooks install` is
+  re-run.
 
 ## 4.0.0-rc5 — 2026-09-11 (Bitbucket Cloud)
 
