@@ -34,6 +34,13 @@ Versions follow semver. Pre-1.0 — minor bumps may add features or break behavi
 - Blocker code rename: a PR URL matching no workspace repo now reports
   `unknown_remote_repo` (was `unknown_github_repo`), and `unparseable_remote`'s
   message names both GitHub and Bitbucket.
+- A review API error on one repo no longer aborts `triage`, the `context`
+  PR map or `feature-state`: that repo reports no PRs / comments, the same
+  degradation the GitHub backend already applied on a `gh` failure.
+- Fix (Windows): every MCP tool call hung under the stdio server while the
+  same command returned instantly through the CLI — git children inherited
+  the stdin pipe the host holds open and never exited. Captured spawns now
+  go through `canopy.proc.run`, which detaches stdin.
 - Internal: `integrations/review.py` façade + `platforms.RemoteRef`;
   `aliases._resolve_owner_slug` replaced by `_resolve_remote`; `PRTarget`
   gains `platform`.
