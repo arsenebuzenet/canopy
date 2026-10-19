@@ -285,3 +285,60 @@ class TestFeatureDone:
         assert lane.name == "slot-2"
 
         coordinator.done("slot-2", force=True)
+
+
+class TestDoneClearsFocus:
+    """done must leave no pointer that keeps the closed feature active."""
+
+    def _ws(self, root):
+        from canopy.workspace.workspace import Workspace
+        return Workspace(load_config(root))
+
+    def test_done_after_start_and_join_clears_active(self, canopy_toml_for_workspace):
+        from canopy.actions import active, slots as slots_mod
+        from canopy.actions.join import join
+        from canopy.actions.registry import context
+        from canopy.actions.start import start
+        from canopy.features.coordinator import FeatureCoordinator
+
+        root = canopy_toml_for_workspace
+        start(self._ws(root), "close-me")
+        join(self._ws(root), "repo-a")
+
+        result = FeatureCoordinator(self._ws(root)).done("close-me", force=True)
+
+        ws = self._ws(root)
+        assert result["active_cleared"] is True
+        assert slots_mod.read_state(ws).canonical is None
+        assert active.get_active(ws) is None
+        assert context(ws)["workspace"]["active_feature"] is None
+
+    def test_done_with_no_canonical_clears_active(self, canopy_toml_for_workspace):
+        from canopy.actions import active
+        from canopy.actions.registry import context
+        from canopy.actions.start import start
+        from canopy.features.coordinator import FeatureCoordinator
+
+        root = canopy_toml_for_workspace
+        start(self._ws(root), "close-me", repos=["repo-a"])
+
+        FeatureCoordinator(self._ws(root)).done("close-me", force=True)
+
+        ws = self._ws(root)
+        assert active.get_active(ws) is None
+        assert context(ws)["workspace"]["active_feature"] is None
+
+    def test_done_keeps_active_pointer_of_another_feature(self, canopy_toml_for_workspace):
+        from canopy.actions import active
+        from canopy.features.coordinator import FeatureCoordinator
+
+        root = canopy_toml_for_workspace
+        ws = self._ws(root)
+        coordinator = FeatureCoordinator(ws)
+        coordinator.create("close-me", use_worktrees=True)
+        active.set_active(ws, "auth-flow")
+
+        result = coordinator.done("close-me", force=True)
+
+        assert result["active_cleared"] is False
+        assert active.get_active(self._ws(root)) == "auth-flow"

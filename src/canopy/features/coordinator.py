@@ -16,6 +16,7 @@ from ..workspace.workspace import Workspace
 from ..git import repo as git
 from ..git.multi import create_branch_all, cross_repo_diff, find_type_overlaps
 from ..providers import get_issue_provider
+from ..actions import active as active_mod
 from ..actions import slots as slots_mod
 from ..actions.externals import ensure_external_links
 
@@ -844,7 +845,9 @@ class FeatureCoordinator:
             self._save_features(features)
             archived = True
 
-        # ── Step 5: Drop canonical pointer if this feature is canonical ──
+        # ── Step 5: Drop the focus pointers that still name this feature ──
+        # context falls back to active.json once canonical is empty, so
+        # clearing canonical alone leaves the done feature reported active.
         active_cleared = False
         try:
             state = slots_mod.read_state(self.workspace)
@@ -853,6 +856,12 @@ class FeatureCoordinator:
                 slots_mod.write_state(self.workspace, state)
                 active_cleared = True
         except Exception:
+            pass
+        try:
+            if active_mod.get_active(self.workspace) == name:
+                active_mod.clear_active(self.workspace)
+                active_cleared = True
+        except OSError:
             pass
 
         return {
