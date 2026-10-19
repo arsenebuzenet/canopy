@@ -331,7 +331,8 @@ precede any checkout (lazy feature growth). `context` reports
 { "active_feature": "SIN-12-search" }
 ```
 
-Atomic temp+rename writes. Cleared by `clear_active`.
+Atomic temp+rename writes. `done` removes it when it names the feature being
+closed.
 
 ## .canopy/state/visits.json
 

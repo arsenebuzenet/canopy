@@ -18,6 +18,11 @@ Versions follow semver. Pre-1.0 — minor bumps may add features or break behavi
   working tree never checked out. The hook now records the main working tree
   only. Existing installs keep the old hook until `canopy hooks install` is
   re-run.
+- Fix: `canopy done` left `.canopy/state/active.json` pointing at the closed
+  feature, so `context` kept reporting it as `active` and `join` would add
+  repos back to it. `done` now removes the pointer when it names the closed
+  feature. A workspace already in that state clears with
+  `rm .canopy/state/active.json`.
 
 ## 4.0.0-rc5 — 2026-09-11 (Bitbucket Cloud)
 
